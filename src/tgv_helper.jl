@@ -379,7 +379,22 @@ function tgv_update_chi!(chi_dest, chi, v, p, mask0, tau, res, omega)
 end
 
 # Update w_dest <- w + tau*(mask*p + div(mask0*q)). 
-function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res)
+function tgv_update_w2!(w_dest, w, p, q, mask, mask0, tau, res, qx, qy, qz)
+    res_inv_dim4 = reshape(res .^ -1, 1, 1, 1, 3)
+
+    # only a subset of all diffs are required
+    # qx = zeros(size(w))
+    # qy = zeros(size(w))
+    # qz = zeros(size(w))
+
+    qx[2:end, :, :, :] .= diff(mask0 .* view(q, :, :, :, [1, 2, 3]); dims=1)
+    qy[:, 2:end, :, :] .= diff(mask0 .* view(q, :, :, :, [2, 4, 5]); dims=2)
+    qz[:, :, 2:end, :] .= diff(mask0 .* view(q, :, :, :, [3, 5, 6]); dims=3)
+
+    w_dest .= w .+ tau .* (mask .* p .+ (qx .+ qy .+ qz) .* res_inv_dim4)
+end
+
+function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res, qx, qy, qz)
     type = eltype(w)
 
     nx = size(w, 1)

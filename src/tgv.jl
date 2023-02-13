@@ -28,7 +28,9 @@ function qsm_tgv(laplace_phi0, mask, res, omega; alpha=(0.2, 0.1), iterations=10
 
     # initialize resolution
     res = abs.(res)
-
+    qy_alloc = zeros(size(w))
+    qx_alloc = zeros(size(w))
+    qz_alloc = zeros(size(w))
     for k in 1:iterations
 
         tau = 1 / sqrt(norm_sqr)
@@ -57,7 +59,7 @@ function qsm_tgv(laplace_phi0, mask, res, omega; alpha=(0.2, 0.1), iterations=10
 
         tgv_update_chi!(chi, chi_, eta, p, mask0, tau, res, omega)
 
-        tgv_update_w!(w, w_, p, q, mask, mask0, tau, res)
+        tgv_update_w!(w, w_, p, q, mask, mask0, tau, res, qx_alloc, qy_alloc, qz_alloc)
 
         ######################
         # extragradient update

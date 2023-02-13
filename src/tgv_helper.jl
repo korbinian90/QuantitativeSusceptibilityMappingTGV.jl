@@ -380,7 +380,7 @@ function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res)
     ny = size(w, 2)
     nz = size(w, 3)
 
-    res_inv = 1 / res
+    res_inv = 1 ./ res
 
     for i in axes(w, 1)
         for j in axes(w, 2)

@@ -6,7 +6,8 @@
 [![Coverage](https://codecov.io/gh/korbinian90/TGV_QSM.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/korbinian90/TGV_QSM.jl)
 
 This is a first version that is directly translated from the [Python source code](http://www.neuroimaging.at/pages/qsm.php) (Cython)  
-Note: It is still single-threaded and about 20x slower than Cython multi-threaded
+Note: It is still single-threaded and about 20x slower than Cython multi-threaded  
+Note 2: Slight numerical errors accumulate (see Issue [Numerical difference](https://github.com/korbinian90/TGV_QSM.jl/issues/7))
 
 ## Setup
 

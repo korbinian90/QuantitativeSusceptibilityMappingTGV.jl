@@ -32,7 +32,7 @@ function qsm_tgv(laplace_phi0, mask, res, omega; alpha=(0.2, 0.1), iterations=10
     for k in 1:iterations
 
         tau = 1 / sqrt(norm_sqr)
-        sigma = (1 / norm_sqr) / tau
+        sigma = (1 / norm_sqr) / tau # TODO they are always identical
 
         #############
         # dual update

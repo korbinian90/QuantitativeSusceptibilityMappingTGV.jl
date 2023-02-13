@@ -1,5 +1,6 @@
 # Update eta <- eta + sigma*mask*(-laplace(phi) + wave(chi) - laplace_phi0). 
 function tgv_update_eta!(eta, phi, chi, laplace_phi0, mask, sigma, res, omega)
+    type = eltype(eta)
 
     nx = size(eta, 1)
     ny = size(eta, 2)
@@ -93,6 +94,7 @@ end
 
 # Update p <- P_{||.||_\infty <= alpha}(p + sigma*(mask0*grad(phi_f) - mask*w). 
 function tgv_update_p!(p, chi, w, mask, mask0, sigma, alpha, res)
+    type = eltype(p)
 
     nx = size(p, 1)
     ny = size(p, 2)
@@ -109,17 +111,17 @@ function tgv_update_p!(p, chi, w, mask, mask0, sigma, alpha, res)
                 dxp = if (i < nx)
                     (chi[i+1, j, k] - chi0) * res_inv[1]
                 else
-                    0
+                    zero(type)
                 end
                 dyp = if (j < ny)
                     (chi[i, j+1, k] - chi0) * res_inv[2]
                 else
-                    0
+                    zero(type)
                 end
                 dzp = if (k < nz)
                     (chi[i, j, k+1] - chi0) * res_inv[3]
                 else
-                    0
+                    zero(type)
                 end
 
                 sigmaw0 = sigma * mask0[i, j, k]
@@ -133,7 +135,7 @@ function tgv_update_p!(p, chi, w, mask, mask0, sigma, alpha, res)
                 pabs = if (pabs > 1)
                     1 / pabs
                 else
-                    1
+                    one(type)
                 end
 
                 p[i, j, k, 1] = px * pabs
@@ -145,6 +147,7 @@ function tgv_update_p!(p, chi, w, mask, mask0, sigma, alpha, res)
 end
 # Update q <- P_{||.||_\infty <= alpha}(q + sigma*weight*symgrad(u)). 
 function tgv_update_q!(q, u, weight, sigma, alpha, res)
+    type = eltype(q)
 
     nx = size(q, 1)
     ny = size(q, 2)
@@ -163,9 +166,9 @@ function tgv_update_q!(q, u, weight, sigma, alpha, res)
                     wxy = res_inv2[1] * (u[i+1, j, k, 2] - u[i, j, k, 2])
                     wxz = res_inv2[1] * (u[i+1, j, k, 3] - u[i, j, k, 3])
                 else
-                    wxx = 0
-                    wxy = 0
-                    wxz = 0
+                    wxx = zero(type)
+                    wxy = zero(type)
+                    wxz = zero(type)
                 end
 
                 if (j < ny)
@@ -173,8 +176,8 @@ function tgv_update_q!(q, u, weight, sigma, alpha, res)
                     wyy = res_inv[2] * (u[i, j+1, k, 2] - u[i, j, k, 2])
                     wyz = res_inv2[2] * (u[i, j+1, k, 3] - u[i, j, k, 3])
                 else
-                    wyy = 0
-                    wyz = 0
+                    wyy = zero(type)
+                    wyz = zero(type)
                 end
 
                 if (k < nz)
@@ -182,7 +185,7 @@ function tgv_update_q!(q, u, weight, sigma, alpha, res)
                     wyz = wyz + res_inv2[3] * (u[i, j, k+1, 2] - u[i, j, k, 2])
                     wzz = res_inv[3] * (u[i, j, k+1, 3] - u[i, j, k, 3])
                 else
-                    wzz = 0
+                    wzz = zero(type)
                 end
 
                 sigmaw = sigma * weight[i, j, k]
@@ -198,7 +201,7 @@ function tgv_update_q!(q, u, weight, sigma, alpha, res)
                 qabs = if (qabs > 1)
                     1 / qabs
                 else
-                    1
+                    one(type)
                 end
 
                 q[i, j, k, 1] = wxx * qabs
@@ -215,6 +218,7 @@ end
 
 # Update phi_dest <- (phi + tau*laplace(mask0*eta))/(1+mask*tau). 
 function tgv_update_phi!(phi_dest, phi, eta, mask, mask0, tau, res)
+    type = eltype(phi)
 
     nx = size(phi, 1)
     ny = size(phi, 2)
@@ -267,7 +271,7 @@ function tgv_update_phi!(phi_dest, phi, eta, mask, mask0, tau, res)
                 fac = if mask[i, j, k]
                     taup1inv
                 else
-                    1
+                    one(type)
                 end
                 phi_dest[i, j, k] = (phi[i, j, k] + tau * laplace) * fac
             end
@@ -278,6 +282,7 @@ end
 
 # Update chi_dest <- chi + tau*(div(p) - wave(mask*v)). 
 function tgv_update_chi!(chi_dest, chi, v, p, mask0, tau, res, omega)
+    type = eltype(chi)
 
     nx = size(chi, 1)
     ny = size(chi, 2)
@@ -300,7 +305,7 @@ function tgv_update_chi!(chi_dest, chi, v, p, mask0, tau, res, omega)
                 div = if i < nx
                     m0 * p[i, j, k, 1] * res_inv[1]
                 else
-                    0
+                    zero(type)
                 end
                 div = if i > 1
                     div - mask0[i-1, j, k] * p[i-1, j, k, 1] * res_inv[1]
@@ -375,6 +380,7 @@ end
 
 # Update w_dest <- w + tau*(mask*p + div(mask0*q)). 
 function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res)
+    type = eltype(w)
 
     nx = size(w, 1)
     ny = size(w, 2)
@@ -389,23 +395,23 @@ function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res)
                 w1 = if i > 1
                     mask0[i-1, j, k]
                 else
-                    0
+                    zero(type)
                 end
                 w2 = if j > 1
                     mask0[i, j-1, k]
                 else
-                    0
+                    zero(type)
                 end
                 w3 = if k > 1
                     mask0[i, j, k-1]
                 else
-                    0
+                    zero(type)
                 end
 
                 q0x = if i < nx
                     w0 * q[i, j, k, 1] * res_inv[1]
                 else
-                    0
+                    zero(type)
                 end
                 q0x = if i > 1
                     q0x - w1 * q[i-1, j, k, 1] * res_inv[1]
@@ -415,7 +421,7 @@ function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res)
                 q1y = if j < ny
                     w0 * q[i, j, k, 2] * res_inv[1]
                 else
-                    0
+                    zero(type)
                 end
                 q1y = if j > 1
                     q1y - w2 * q[i, j-1, k, 2] * res_inv[1]
@@ -425,7 +431,7 @@ function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res)
                 q2z = if k < nz
                     w0 * q[i, j, k, 3] * res_inv[1]
                 else
-                    0
+                    zero(type)
                 end
                 q2z = if k > 1
                     q2z - w3 * q[i, j, k-1, 3] * res_inv[1]
@@ -436,7 +442,7 @@ function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res)
                 q1x = if i < nx
                     w0 * q[i, j, k, 2] * res_inv[2]
                 else
-                    0
+                    zero(type)
                 end
                 q1x = if i > 1
                     q1x - w1 * q[i-1, j, k, 2] * res_inv[2]
@@ -446,7 +452,7 @@ function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res)
                 q3y = if j < ny
                     w0 * q[i, j, k, 4] * res_inv[2]
                 else
-                    0
+                    zero(type)
                 end
                 q3y = if j > 1
                     q3y - w2 * q[i, j-1, k, 4] * res_inv[2]
@@ -456,7 +462,7 @@ function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res)
                 q4z = if k < nz
                     w0 * q[i, j, k, 5] * res_inv[2]
                 else
-                    0
+                    zero(type)
                 end
                 q4z = if k > 1
                     q4z - w3 * q[i, j, k-1, 5] * res_inv[2]
@@ -467,7 +473,7 @@ function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res)
                 q2x = if i < nx
                     w0 * q[i, j, k, 3] * res_inv[3]
                 else
-                    0
+                    zero(type)
                 end
                 q2x = if i > 1
                     q2x - w1 * q[i-1, j, k, 3] * res_inv[3]
@@ -477,7 +483,7 @@ function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res)
                 q4y = if j < ny
                     w0 * q[i, j, k, 5] * res_inv[3]
                 else
-                    0
+                    zero(type)
                 end
                 q4y = if j > 1
                     q4y - w2 * q[i, j-1, k, 5] * res_inv[3]
@@ -487,7 +493,7 @@ function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res)
                 q5z = if k < nz
                     w0 * q[i, j, k, 6] * res_inv[3]
                 else
-                    0
+                    zero(type)
                 end
                 q5z = if k > 1
                     q5z - w3 * q[i, j, k-1, 6] * res_inv[3]

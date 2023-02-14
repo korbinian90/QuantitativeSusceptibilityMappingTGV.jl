@@ -3,5 +3,8 @@ uuid = "bd393529-335a-4aed-902f-5de61cc7ff49"
 authors = ["Korbinian Eckstein korbinian90@gmail.com"]
 version = "0.1.0"
 
+[deps]
+Tullio = "bc48ee85-29a4-5162-ae0b-a64e1601d4bc"
+
 [compat]
 julia = "1.6"

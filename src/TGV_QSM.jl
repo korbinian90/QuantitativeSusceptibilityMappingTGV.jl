@@ -1,6 +1,6 @@
 module TGV_QSM
 
-using Tullio
+using Tullio, CUDA, CUDAKernels, KernelAbstractions, PaddedViews
 
 include("tgv.jl")
 include("tgv_helper.jl")

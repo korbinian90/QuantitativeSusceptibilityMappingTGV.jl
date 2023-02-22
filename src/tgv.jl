@@ -52,25 +52,14 @@ function qsm_tgv(laplace_phi0, mask, res, omega; alpha=(0.2, 0.1), iterations=10
         # dual update
 
         thread_eta = tgv_update_eta!(eta, phi_, chi_, laplace_phi0, mask0, sigma, res, omega; cu, device)
-        if k == 10
-            wait(thread_eta)
-            return eta
-        end
+
         thread_p = tgv_update_p!(p, chi_, w_, mask, mask0, sigma, alpha1, res; cu, device)
-        if k == 2
-            @show sigma
-            @show alpha1
-            @show res
-            wait(thread_p)
-            return p
-        end
 
         thread_q = tgv_update_q!(q, w_, mask0, sigma, alpha0, res; cu, device)
         wait(thread_eta)
         wait(thread_p)
         wait(thread_q)
-        #synchronize()
-        # sync_threads()
+
         #######################
         # swap primal variables
 
@@ -88,9 +77,6 @@ function qsm_tgv(laplace_phi0, mask, res, omega; alpha=(0.2, 0.1), iterations=10
         wait(thread_phi)
         wait(thread_chi)
         wait(thread_w)
-
-        # synchronize()
-        # sync_threads()
 
         ######################
         # extragradient update

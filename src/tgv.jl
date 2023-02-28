@@ -24,7 +24,13 @@ function qsm_tgv(laplace_phi0, mask, res, omega; alpha=(0.2, 0.1), iterations=10
     p = cu(zeros(type, (size(laplace_phi0)..., 3)))
     q = cu(zeros(type, (size(laplace_phi0)..., 6)))
 
-    res = type.(abs.(res))
+    res_corr = prod(res)^(-1 / 3)
+    res = collect(type.(abs.(res))) * res_corr
+    alpha = collect(type.(alpha))
+    alpha[2] *= res_corr
+    alpha[1] *= res_corr .^ 2
+    laplace_phi0 ./= res_corr .^ 2
+
     omega = type.(omega)
     # estimate squared norm
     grad_norm_sqr = 4 * (sum(res .^ -2))

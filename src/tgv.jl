@@ -1,3 +1,8 @@
+function qsm_full(phase, mask, res, omega; kw...)
+    laplacp_phi0 = laplacian(phase, res)
+    return qsm_tgv(phase, mask, res, omega; kw...)
+end
+
 function qsm_tgv(laplace_phi0, mask, res, omega; alpha=(0.2, 0.1), iterations=1000, type=Float32, gpu=false)
     device, cu = if gpu
         CUDADevice(), CUDA.cu
@@ -59,9 +64,7 @@ function qsm_tgv(laplace_phi0, mask, res, omega; alpha=(0.2, 0.1), iterations=10
         # dual update
 
         thread_eta = tgv_update_eta!(eta, phi_, chi_, laplace_phi0, mask0, sigma, res, omega; cu, device)
-
         thread_p = tgv_update_p!(p, chi_, w_, mask, mask0, sigma, alpha1, res; cu, device)
-
         thread_q = tgv_update_q!(q, w_, mask0, sigma, alpha0, res; cu, device)
         wait(thread_eta)
         wait(thread_p)
@@ -77,9 +80,7 @@ function qsm_tgv(laplace_phi0, mask, res, omega; alpha=(0.2, 0.1), iterations=10
         ###############
         # primal update
         thread_phi = tgv_update_phi!(phi, phi_, eta, mask, mask0, tau, res; cu, device)
-
         thread_chi = tgv_update_chi!(chi, chi_, eta, p, mask0, tau, res, omega; cu, device)
-
         thread_w = tgv_update_w!(w, w_, p, q, mask, mask0, tau, res, res_inv_dim4, qx_alloc, qy_alloc, qz_alloc; cu, device)
         wait(thread_phi)
         wait(thread_chi)
@@ -89,11 +90,90 @@ function qsm_tgv(laplace_phi0, mask, res, omega; alpha=(0.2, 0.1), iterations=10
         # extragradient update
 
         @sync begin
-        @async extragradient_update(phi_, phi)
-        @async extragradient_update(chi_, chi)
-        @async extragradient_update(w_, w)
+            @async extragradient_update(phi_, phi)
+            @async extragradient_update(chi_, chi)
+            @async extragradient_update(w_, w)
         end
     end
 
     return chi
+end
+
+function laplacian(phase, res)
+    sz = size(phase)
+    padded_indices = (0:sz[1]+1, 0:sz[2]+1, 0:sz[3]+1)
+    phase_pad = PaddedView(0, phase, padded_indices)
+
+    laplace_phi = rem2pi.(-2.0 * phase_pad[1:end-1, 1:end-1, 1:end-1] +
+                    (phase_pad[0:end-2, 1:end-1, 1:end-1]) +
+                    (phase_pad[2:end, 1:end-1, 1:end-1]), RoundNearest) / (res[1]^2)
+
+    laplace_phi += rem2pi.(-2.0 * phase_pad[1:end-1, 1:end-1, 1:end-1] +
+                    (phase_pad[1:end-1, 0:end-2, 1:end-1]) +
+                    (phase_pad[1:end-1, 2:end, 1:end-1]), RoundNearest) / (res[2]^2)
+
+    laplace_phi += rem2pi.(-2.0 * phase_pad[1:end-1, 1:end-1, 1:end-1] +
+                    (phase_pad[1:end-1, 1:end-1, 0:end-2]) +
+                    (phase_pad[1:end-1, 1:end-1, 2:end]), RoundNearest) / (res[3]^2)
+    return laplace_phi
+end
+
+function get_laplace_phase3(phase, res)
+    #pad phase
+    sz = size(phase)
+    padded_indices = (0:sz[1]+1, 0:sz[2]+1, 0:sz[3]+1)
+    phase = PaddedView(0, phase, padded_indices)
+
+    @show size(phase)
+
+    dx = phase[1:end,1:end-1,1:end-1] .- phase[0:end-1,1:end-1,1:end-1]
+    dy = phase[1:end-1,1:end,1:end-1] .- phase[1:end-1,0:end-1,1:end-1]
+    dz = phase[1:end-1,1:end-1,1:end] .- phase[1:end-1,1:end-1,0:end-1]
+
+    (Ix, Jx) = get_best_local_h1(dx, axis=1)
+    (Iy, Jy) = get_best_local_h1(dy, axis=2)
+    (Iz, Jz) = get_best_local_h1(dz, axis=3)
+
+    @show size(Ix) size(Jx) size(phase)
+    laplace_phi = (-2.0 * phase[1:end-1, 1:end-1, 1:end-1] +
+                   (phase[0:end-2, 1:end-1, 1:end-1] + 2 * pi * Ix) +
+                   (phase[2:end, 1:end-1, 1:end-1] + 2 * pi * Jx)) / (res[1]^2)
+
+    laplace_phi += (-2.0 * phase[1:end-1, 1:end-1, 1:end-1] +
+                    (phase[1:end-1, 0:end-2, 1:end-1] + 2 * pi * Iy) +
+                    (phase[1:end-1, 2:end, 1:end-1] + 2 * pi * Jy)) / (res[2]^2)
+
+    laplace_phi += (-2.0 * phase[1:end-1, 1:end-1, 1:end-1] +
+                    (phase[1:end-1, 1:end-1, 0:end-2] + 2 * pi * Iz) +
+                    (phase[1:end-1, 1:end-1, 2:end] + 2 * pi * Jz)) / (res[3]^2)
+
+    return laplace_phi
+end
+
+function get_best_local_h1(dx; axis=1)
+    F_shape = collect(size(dx))
+    F_shape[axis] -= 1
+    push!(F_shape, 3)
+    push!(F_shape, 3)
+
+    F = zeros(eltype(dx), Tuple(F_shape))
+    for i in -1:1
+        for j in -1:1
+            F[:, :, :, i+2, j+2] =
+                if axis == 1
+                    (dx[1:end-1, :, :] .- (2pi * i)).^2 + (dx[2:end, :, :] .+ (2pi * j)).^2
+                elseif axis == 2
+                    (dx[:, 1:end-1, :] .- (2pi * i)).^2 + (dx[:, 2:end, :] .+ (2pi * j)).^2
+                elseif axis == 3
+                    (dx[:, :, 1:end-1] .- (2pi * i)).^2 + (dx[:, :, 2:end] .+ (2pi * j)).^2
+                end
+        end
+    end
+
+    G = argmin(F; dims=(4,5))
+    G = dropdims(G; dims=(4,5))
+    I = getindex.(G, 4) .- 2
+    J = getindex.(G, 5) .- 2
+
+    return I, J
 end

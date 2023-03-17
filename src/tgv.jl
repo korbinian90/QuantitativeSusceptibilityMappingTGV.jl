@@ -1,13 +1,17 @@
-function qsm_full(phase, mask, res, omega=[0,0,1]; kw...)
+function qsm_full(phase, mask, res, omega=[0, 0, 1]; kw...)
     laplace_phi0 = laplacian(phase, res)
     return qsm_tgv(laplace_phi0, mask, res, omega; kw...)
 end
 
-function qsm_tgv(laplace_phi0, mask, res, omega=[0,0,1]; alpha=(0.2, 0.1), iterations=1000, erosions=3, type=Float32, gpu=false)
+function qsm_tgv(laplace_phi0, mask, res, omega=[0, 0, 1]; TE, fieldstrength=3, alpha=(0.2, 0.1), iterations=1000, erosions=3, type=Float32, gpu=false)
     device, cu = if gpu
         CUDADevice(), CUDA.cu
     else
         CPU(), identity
+    end
+
+    for _ in 1:erosions
+        mask = erode_mask(mask)
     end
 
     laplace_phi0 = cu(copy(laplace_phi0))
@@ -96,7 +100,7 @@ function qsm_tgv(laplace_phi0, mask, res, omega=[0,0,1]; alpha=(0.2, 0.1), itera
         end
     end
 
-    return chi
+    return chi ./ scale(TE, fieldstrength)
 end
 
 function laplacian(phase, res)
@@ -105,16 +109,16 @@ function laplacian(phase, res)
     phase_pad = PaddedView(0, phase, padded_indices)
 
     laplace_phi = rem2pi.(-2.0 * phase_pad[1:end-1, 1:end-1, 1:end-1] +
-                    (phase_pad[0:end-2, 1:end-1, 1:end-1]) +
-                    (phase_pad[2:end, 1:end-1, 1:end-1]), RoundNearest) / (res[1]^2)
+                          (phase_pad[0:end-2, 1:end-1, 1:end-1]) +
+                          (phase_pad[2:end, 1:end-1, 1:end-1]), RoundNearest) / (res[1]^2)
 
     laplace_phi += rem2pi.(-2.0 * phase_pad[1:end-1, 1:end-1, 1:end-1] +
-                    (phase_pad[1:end-1, 0:end-2, 1:end-1]) +
-                    (phase_pad[1:end-1, 2:end, 1:end-1]), RoundNearest) / (res[2]^2)
+                           (phase_pad[1:end-1, 0:end-2, 1:end-1]) +
+                           (phase_pad[1:end-1, 2:end, 1:end-1]), RoundNearest) / (res[2]^2)
 
     laplace_phi += rem2pi.(-2.0 * phase_pad[1:end-1, 1:end-1, 1:end-1] +
-                    (phase_pad[1:end-1, 1:end-1, 0:end-2]) +
-                    (phase_pad[1:end-1, 1:end-1, 2:end]), RoundNearest) / (res[3]^2)
+                           (phase_pad[1:end-1, 1:end-1, 0:end-2]) +
+                           (phase_pad[1:end-1, 1:end-1, 2:end]), RoundNearest) / (res[3]^2)
     return laplace_phi
 end
 
@@ -126,9 +130,9 @@ function get_laplace_phase3(phase, res)
 
     @show size(phase)
 
-    dx = phase[1:end,1:end-1,1:end-1] .- phase[0:end-1,1:end-1,1:end-1]
-    dy = phase[1:end-1,1:end,1:end-1] .- phase[1:end-1,0:end-1,1:end-1]
-    dz = phase[1:end-1,1:end-1,1:end] .- phase[1:end-1,1:end-1,0:end-1]
+    dx = phase[1:end, 1:end-1, 1:end-1] .- phase[0:end-1, 1:end-1, 1:end-1]
+    dy = phase[1:end-1, 1:end, 1:end-1] .- phase[1:end-1, 0:end-1, 1:end-1]
+    dz = phase[1:end-1, 1:end-1, 1:end] .- phase[1:end-1, 1:end-1, 0:end-1]
 
     (Ix, Jx) = get_best_local_h1(dx, axis=1)
     (Iy, Jy) = get_best_local_h1(dy, axis=2)
@@ -161,17 +165,17 @@ function get_best_local_h1(dx; axis=1)
         for j in -1:1
             F[:, :, :, i+2, j+2] =
                 if axis == 1
-                    (dx[1:end-1, :, :] .- (2pi * i)).^2 + (dx[2:end, :, :] .+ (2pi * j)).^2
+                    (dx[1:end-1, :, :] .- (2pi * i)) .^ 2 + (dx[2:end, :, :] .+ (2pi * j)) .^ 2
                 elseif axis == 2
-                    (dx[:, 1:end-1, :] .- (2pi * i)).^2 + (dx[:, 2:end, :] .+ (2pi * j)).^2
+                    (dx[:, 1:end-1, :] .- (2pi * i)) .^ 2 + (dx[:, 2:end, :] .+ (2pi * j)) .^ 2
                 elseif axis == 3
-                    (dx[:, :, 1:end-1] .- (2pi * i)).^2 + (dx[:, :, 2:end] .+ (2pi * j)).^2
+                    (dx[:, :, 1:end-1] .- (2pi * i)) .^ 2 + (dx[:, :, 2:end] .+ (2pi * j)) .^ 2
                 end
         end
     end
 
-    G = argmin(F; dims=(4,5))
-    G = dropdims(G; dims=(4,5))
+    G = argmin(F; dims=(4, 5))
+    G = dropdims(G; dims=(4, 5))
     I = getindex.(G, 4) .- 2
     J = getindex.(G, 5) .- 2
 
@@ -180,6 +184,11 @@ end
 
 function erode_mask(mask)
     SE = strel(CartesianIndex, strel_diamond(mask))
-    erode_vox(I) = minimum(mask[I+J] for J in SE if checkbounds(Bool, mask, I+J))
+    erode_vox(I) = minimum(mask[I+J] for J in SE if checkbounds(Bool, mask, I + J))
     return [erode_vox(I) for I in eachindex(IndexCartesian(), mask)]
+end
+
+function scale(TE, fieldstrength)
+    GAMMA = 42.5781
+    return 2pi * TE * fieldstrength * GAMMA
 end

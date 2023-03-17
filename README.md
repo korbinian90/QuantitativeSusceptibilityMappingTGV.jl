@@ -5,13 +5,12 @@
 [![Build Status](https://github.com/korbinian90/TGV_QSM.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/korbinian90/TGV_QSM.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/korbinian90/TGV_QSM.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/korbinian90/TGV_QSM.jl)
 
-This is a first version that is directly and as closely a possible translated from the [Python source code](http://www.neuroimaging.at/pages/qsm.php) (Cython)  
-Note: The CPU version is currently about 30% slower than the Cython version, the GPU version is about 5x faster than the Cython version (on a RTX 3060 Laptop GPU 6GB)  
-Note 2: Slight numerical errors accumulate (see Issue [Numerical difference](https://github.com/korbinian90/TGV_QSM.jl/issues/7))
+This project is directly and as closely a possible translated from the [Python source code](http://www.neuroimaging.at/pages/qsm.php) (Cython)  
+Note: The parallel CPU version is currently about 30% slower than the Cython version, the GPU version is about 5x faster than the Cython version (on a RTX 3060 Laptop GPU 6GB)  
 
 ## Setup
 
-1. Install [Julia](https://julialang.org/downloads/) (v1.6 or newer)
+1. Install [Julia](https://julialang.org/downloads/) (v1.6 or newer, v1.9+ recommended)
 2. Install this package  
     Open the julia REPL and type:
 
@@ -30,11 +29,12 @@ Note 2: Slight numerical errors accumulate (see Issue [Numerical difference](htt
     ```julia
         using TGV_QSM, MriResearchTools
         mask = niread("<mask-path>") .!= 0; # convert to boolean
-        laplace_phi0 = niread("<laplacian-path>");
-        res = [1, 1, 1]
-        omega = [0, 0, 1]
         
-        @time chi = qsm_tgv(laplace_phi0, mask, res, omega; alpha=(0.0015, 0.0005), iterations=10);
+        res = [1, 1, 1]
+        laplace_phi0 = get_laplace_phase3(phase, res); # identical to Python
+        # laplace_phi0 = laplacian(phase, res); # faster; identical in normal phase; different in noise
+        
+        @time chi = qsm_tgv(laplace_phi0, mask, res; alpha=(0.0015, 0.0005), iterations=10);
         
         savenii(chi, "chi", "<folder-to-save>")
     ```

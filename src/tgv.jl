@@ -1,9 +1,9 @@
-function qsm_full(phase, mask, res, omega=[0, 0, 1]; kw...)
+function qsm_full(phase, mask, res; kw...)
     laplace_phi0 = laplacian(phase, res)
-    return qsm_tgv(laplace_phi0, mask, res, omega; kw...)
+    return qsm_tgv(laplace_phi0, mask, res; kw...)
 end
 
-function qsm_tgv(laplace_phi0, mask, res, omega=[0, 0, 1]; TE, fieldstrength=3, alpha=(0.2, 0.1), iterations=1000, erosions=3, type=Float32, gpu=false)
+function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], alpha=(0.0015, 0.0005), iterations=1000, erosions=3, type=Float32, gpu=false)
     device, cu = if gpu
         CUDADevice(), CUDA.cu
     else

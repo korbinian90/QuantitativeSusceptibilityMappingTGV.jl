@@ -128,8 +128,6 @@ function get_laplace_phase3(phase, res)
     padded_indices = (0:sz[1]+1, 0:sz[2]+1, 0:sz[3]+1)
     phase = PaddedView(0, phase, padded_indices)
 
-    @show size(phase)
-
     dx = phase[1:end, 1:end-1, 1:end-1] .- phase[0:end-1, 1:end-1, 1:end-1]
     dy = phase[1:end-1, 1:end, 1:end-1] .- phase[1:end-1, 0:end-1, 1:end-1]
     dz = phase[1:end-1, 1:end-1, 1:end] .- phase[1:end-1, 1:end-1, 0:end-1]
@@ -138,7 +136,6 @@ function get_laplace_phase3(phase, res)
     (Iy, Jy) = get_best_local_h1(dy, axis=2)
     (Iz, Jz) = get_best_local_h1(dz, axis=3)
 
-    @show size(Ix) size(Jx) size(phase)
     laplace_phi = (-2.0 * phase[1:end-1, 1:end-1, 1:end-1] +
                    (phase[0:end-2, 1:end-1, 1:end-1] + 2 * pi * Ix) +
                    (phase[2:end, 1:end-1, 1:end-1] + 2 * pi * Jx)) / (res[1]^2)

@@ -28,16 +28,18 @@ Note: The parallel CPU version is currently about 30% slower than the Cython ver
 
     ```julia
         using TGV_QSM, MriResearchTools
+
         mask = niread("<mask-path>") .!= 0; # convert to boolean
+        phase = readphase("<phase-path>");
         
         res = [1, 1, 1] # in [mm]
         TE = 0.004 # in [s]
         fieldstrength = 3 # in [T]
-        laplace_phi0 = get_laplace_phase3(phase, res); # identical to Python
-        # laplace_phi0 = laplacian(phase, res); # faster; identical in normal phase; different in noise
+        laplace_phi0 = get_laplace_phase3(phase, res);
         
         # Runs parallel on CPU
-        @time chi = qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength, alpha=(0.0015, 0.0005), iterations=10);
+        @time chi = qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength, iterations=10);
+
         savenii(chi, "chi", "<folder-to-save>")
     ```
 
@@ -46,19 +48,23 @@ Note: The parallel CPU version is currently about 30% slower than the Cython ver
         @time chi = qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength, alpha=(0.0015, 0.0005), iterations=10, gpu=true);
     ```
 
-## Self contained example to test if everything runs
+The first execution might take some time to compile the kernels (<1min).
 
-    ```julia
-        sz = (20, 20, 20)
-        phase = randn(sz)
-        laplace_phi0 = get_laplace_phase3(phase)
-        mask = trues(sz)
-        res = [1, 1, 1]
-        omega = [0, 0, 1]
-        
-        iterations=10
-        chi = qsm_tgv(laplace_phi0, mask, res, omega; iterations)
-    ```
+## Self contained example to test if everything works
+
+```julia
+   using TGV_QSM
+
+    sz = (20, 20, 20)
+    res = [1, 1, 1]
+    TE = 0.01
+
+    phase = randn(sz)
+    mask = trues(sz)
+    laplace_phi0 = get_laplace_phase3(phase, res)
+
+    chi = qsm_tgv(laplace_phi0, mask, res; TE, iterations=10)
+```
 
 ## Note
 

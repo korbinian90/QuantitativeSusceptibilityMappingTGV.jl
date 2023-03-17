@@ -65,7 +65,3 @@ The first execution might take some time to compile the kernels (<1min).
 
     chi = qsm_tgv(laplace_phi0, mask, res; TE, iterations=10)
 ```
-
-## Note
-
-Currently the package CUDA.jl is added as dependency. It might be that TGV_QSM.jl can only be downloaded when a NVidia GPU is available. This will be tested in future and made optional in case.

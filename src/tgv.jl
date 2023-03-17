@@ -1,9 +1,9 @@
-function qsm_full(phase, mask, res, omega; kw...)
-    laplacp_phi0 = laplacian(phase, res)
-    return qsm_tgv(phase, mask, res, omega; kw...)
+function qsm_full(phase, mask, res, omega=[0,0,1]; kw...)
+    laplace_phi0 = laplacian(phase, res)
+    return qsm_tgv(laplace_phi0, mask, res, omega; kw...)
 end
 
-function qsm_tgv(laplace_phi0, mask, res, omega; alpha=(0.2, 0.1), iterations=1000, type=Float32, gpu=false)
+function qsm_tgv(laplace_phi0, mask, res, omega=[0,0,1]; alpha=(0.2, 0.1), iterations=1000, erosions=3, type=Float32, gpu=false)
     device, cu = if gpu
         CUDADevice(), CUDA.cu
     else
@@ -12,7 +12,7 @@ function qsm_tgv(laplace_phi0, mask, res, omega; alpha=(0.2, 0.1), iterations=10
 
     laplace_phi0 = cu(copy(laplace_phi0))
 
-    mask0 = cu(copy(mask))
+    mask0 = cu(erode_mask(mask))
     mask = cu(mask)
     # initialize primal variables
     chi = cu(zeros(type, size(laplace_phi0)))
@@ -176,4 +176,10 @@ function get_best_local_h1(dx; axis=1)
     J = getindex.(G, 5) .- 2
 
     return I, J
+end
+
+function erode_mask(mask)
+    SE = strel(CartesianIndex, strel_diamond(mask))
+    erode_vox(I) = minimum(mask[I+J] for J in SE if checkbounds(Bool, mask, I+J))
+    return [erode_vox(I) for I in eachindex(IndexCartesian(), mask)]
 end

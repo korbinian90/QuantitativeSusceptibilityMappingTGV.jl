@@ -1,6 +1,8 @@
 module TGV_QSM
 
 using CUDA, CUDAKernels, KernelAbstractions, PaddedViews, ImageMorphology, Interpolations, Rotations, OffsetArrays, StaticArrays
+using ParallelStencil, ParallelStencil.FiniteDifferences3D
+@init_parallel_stencil(Threads, Float32, 3)
 
 include("tgv.jl")
 include("tgv_helper.jl")

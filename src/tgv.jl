@@ -4,11 +4,13 @@ function qsm_full(phase, mask, res; kw...)
 end
 
 function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], alpha=(0.0015, 0.0005), iterations=1000, erosions=3, type=Float32, gpu=false)
-    device, cu = if gpu
-        CUDADevice(), CUDA.cu
-    else
-        CPU(), identity
-    end
+    # device, cu = if gpu
+    #     CUDADevice(), CUDA.cu
+    # else
+    #     CPU(), identity
+    # end
+    
+    device, cu = CPU(), Data.Array
 
     for _ in 1:erosions
         mask = erode_mask(mask)
@@ -57,9 +59,9 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
     qz_alloc = cu(zeros(type, size(w)))
 
     res_inv_dim4 = cu(reshape(res .^ -1, 1, 1, 1, 3))
-
-    synchronize()
-    for k in 1:iterations
+    synchronize()    
+    
+    @time for k in 1:iterations
 
         tau = 1 / sqrt(norm_sqr)
         sigma = (1 / norm_sqr) / tau # TODO they are always identical
@@ -67,37 +69,37 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
         #############
         # dual update
 
-        thread_eta = tgv_update_eta!(eta, phi_, chi_, laplace_phi0, mask0, sigma, res, omega; cu, device)
-        thread_p = tgv_update_p!(p, chi_, w_, mask, mask0, sigma, alpha1, res; cu, device)
-        thread_q = tgv_update_q!(q, w_, mask0, sigma, alpha0, res; cu, device)
-        wait(thread_eta)
-        wait(thread_p)
-        wait(thread_q)
+        tgv_update_eta!(eta, phi_, chi_, laplace_phi0, mask0, sigma, res, omega; cu, device)
+        # thread_p = tgv_update_p!(p, chi_, w_, mask, mask0, sigma, alpha1, res; cu, device)
+        # thread_q = tgv_update_q!(q, w_, mask0, sigma, alpha0, res; cu, device)
+        # wait(thread_eta)
+        # wait(thread_p)
+        # wait(thread_q)
 
         #######################
         # swap primal variables
 
-        (phi_, phi) = (phi, phi_)
-        (chi_, chi) = (chi, chi_)
-        (w_, w) = (w, w_)
+        # (phi_, phi) = (phi, phi_)
+        # (chi_, chi) = (chi, chi_)
+        # (w_, w) = (w, w_)
 
-        ###############
-        # primal update
-        thread_phi = tgv_update_phi!(phi, phi_, eta, mask, mask0, tau, res; cu, device)
-        thread_chi = tgv_update_chi!(chi, chi_, eta, p, mask0, tau, res, omega; cu, device)
-        thread_w = tgv_update_w!(w, w_, p, q, mask, mask0, tau, res, res_inv_dim4, qx_alloc, qy_alloc, qz_alloc; cu, device)
-        wait(thread_phi)
-        wait(thread_chi)
-        wait(thread_w)
+        # ###############
+        # # primal update
+        # thread_phi = tgv_update_phi!(phi, phi_, eta, mask, mask0, tau, res; cu, device)
+        # thread_chi = tgv_update_chi!(chi, chi_, eta, p, mask0, tau, res, omega; cu, device)
+        # thread_w = tgv_update_w!(w, w_, p, q, mask, mask0, tau, res, res_inv_dim4, qx_alloc, qy_alloc, qz_alloc; cu, device)
+        # wait(thread_phi)
+        # wait(thread_chi)
+        # wait(thread_w)
 
-        ######################
-        # extragradient update
+        # ######################
+        # # extragradient update
 
-        @sync begin
-            @async extragradient_update(phi_, phi)
-            @async extragradient_update(chi_, chi)
-            @async extragradient_update(w_, w)
-        end
+        # @sync begin
+        #     @async extragradient_update(phi_, phi)
+        #     @async extragradient_update(chi_, chi)
+        #     @async extragradient_update(w_, w)
+        # end
     end
 
     return chi ./ scale(TE, fieldstrength)

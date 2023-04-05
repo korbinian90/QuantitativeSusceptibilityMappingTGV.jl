@@ -3,8 +3,64 @@ function tgv_update_eta!(eta, phi, chi, laplace_phi0, mask, sigma, res, omega; c
     resinv = res .^ -2
     wresinv = [1 / 3, 1 / 3, -2 / 3] .* resinv
 
-    update_eta_kernel!(device, 64)(eta, phi, chi, laplace_phi0, mask, sigma, cu(resinv), cu(wresinv); ndrange=size(eta))
+    # update_eta_kernel!(device, 64)(eta, phi, chi, laplace_phi0, mask, sigma, cu(resinv), cu(wresinv); ndrange=size(eta))
+    @parallel (2:size(phi,1)-1, 2:size(phi,2)-1,2:size(phi,3)-1) update_eta_parallel!(eta, phi, chi, laplace_phi0, mask, sigma, resinv[1], resinv[2], resinv[3], wresinv[1], wresinv[2], wresinv[3])
 end
+
+# macro laplace(A::Symbol)  esc(:(1.0/(1.0/$A[$ix  ,$iy  ,$iz  ] + 1.0/$A[$ix+1,$iy  ,$iz  ] +
+#                                      1.0/$A[$ix+1,$iy+1,$iz  ] + 1.0/$A[$ix+1,$iy+1,$iz+1] +
+#                                      1.0/$A[$ix  ,$iy+1,$iz+1] + 1.0/$A[$ix  ,$iy  ,$iz+1] +
+#                                      1.0/$A[$ix+1,$iy  ,$iz+1] + 1.0/$A[$ix  ,$iy+1,$iz  ] )*8.0)) end
+
+@parallel_indices (i,j,k) function update_eta_stencil!(eta, phi, chi, laplace_phi0, mask, sigma, resinv1, resinv2, resinv3, wresinv1, wresinv2, wresinv3)
+    # x, y, z = size(phi)
+    # if (i > 1) && (i < x)&&(j > 1)&&(j < y)&&(k > 1)&&(k < z)
+    # compute -laplace(phi)
+    A0 = phi[i, j, k]
+    A1m = phi[i-1, j, k]
+    A1p = phi[i+1, j, k]
+    A2m = phi[i, j-1, k]
+    A2p = phi[i, j+1, k]
+    A3m = phi[i, j, k-1]
+    A3p = phi[i, j, k+1]
+
+    laplace = (2A0 - A1m - A1p) * resinv1 +
+              (2A0 - A2m - A2p) * resinv2 +
+              (2A0 - A3m - A3p) * resinv3
+
+    # compute wave(chi)
+    chi0 = chi[i, j, k]
+    chi1m = chi[i-1, j, k]
+    chi1p = chi[i+1, j, k]
+    chi2m = chi[i, j-1, k]
+    chi2p = chi[i, j+1, k]
+    chi3m = chi[i, j, k-1]
+    chi3p = chi[i, j, k+1]
+
+    wave = (-2chi0 + chi1m + chi1p) * wresinv1 +
+           (-2chi0 + chi2m + chi2p) * wresinv2 +
+           (-2chi0 + chi3m + chi3p) * wresinv3
+
+    eta[i, j, k] += sigma * mask[i, j, k] * (laplace + wave - laplace_phi0[i, j, k])
+    # end
+    return
+end
+
+@parallel function update_eta_parallel!(eta, phi, chi, laplace_phi0, mask, sigma, resinv1, resinv2, resinv3, wresinv1, wresinv2, wresinv3)
+    # laplace = @d2_xi(phi) * resinv[1] + @d2_yi(phi) * resinv[2] + @d2_zi(phi) * resinv[3]
+
+    # wave = -@d2_xi(chi) * wresinv[1] - @d2_yi(chi) * wresinv[2] - @d2_zi(chi) * wresinv[3]
+
+    @inn(eta) = @inn(eta) + sigma * @inn(mask) * (
+        @d2_xi(phi) * resinv1 + @d2_yi(phi) * resinv2 + @d2_zi(phi) * resinv3 - # laplacian
+        @d2_xi(chi) * wresinv1 - @d2_yi(chi) * wresinv2 - @d2_zi(chi) * wresinv3 - # wave
+        @inn(laplace_phi0))
+    return
+end
+
+
+# Update p <- P_{||.||_\infty <= alpha}(p + sigma*(mask0*grad(phi_f) - mask*w). 
+
 
 @kernel function update_eta_kernel!(eta, phi, chi, laplace_phi0, mask, sigma, resinv, wresinv)
     i, j, k = @index(Global, NTuple)

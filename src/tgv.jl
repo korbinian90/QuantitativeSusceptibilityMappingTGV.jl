@@ -35,6 +35,8 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
     p = cu(zeros(type, (size(laplace_phi0)..., 3)))
     q = cu(zeros(type, (size(laplace_phi0)..., 6)))
 
+    tensor = cu(ones(type, (size(laplace_phi0)..., 6)) ./ 3)
+
     res = type.(abs.(res))
     # res_corr = prod(res)^(-1 / 3)
     # res = collect(type.(abs.(res))) * res_corr
@@ -70,7 +72,7 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
         # dual update
 
         tgv_update_eta!(eta, phi_, chi_, laplace_phi0, mask0, sigma, res, omega; cu, device)
-        # thread_p = tgv_update_p!(p, chi_, w_, mask, mask0, sigma, alpha1, res; cu, device)
+        tgv_update_p!(p, chi_, w_, tensor, mask, mask0, sigma, alpha1, res; cu, device)
         # thread_q = tgv_update_q!(q, w_, mask0, sigma, alpha0, res; cu, device)
         # wait(thread_eta)
         # wait(thread_p)

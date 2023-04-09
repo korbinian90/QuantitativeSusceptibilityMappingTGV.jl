@@ -96,37 +96,46 @@ end
 end
 
 # Update p <- P_{||.||_\infty <= alpha}(p + sigma*(mask0*grad(phi_f) - mask*w). 
-function tgv_update_p!(p, chi, w, mask, mask0, sigma, alpha, res; cu=cu, device=CUDADevice(), nblocks=64)
+function tgv_update_p!(p, chi, w, tensor, mask, mask0, sigma, alpha, res; cu=cu, device=CUDADevice(), nblocks=64)
     alphainv = 1 / alpha
-    resinv = cu(1 ./ res)
+    resinv = 1 ./ res
 
-    update_p_kernel!(device, nblocks)(p, chi, w, mask, mask0, sigma, alphainv, resinv; ndrange=size(chi))
+    # update_p_kernel!(device, nblocks)(p, chi, w, mask, mask0, sigma, alphainv, resinv; ndrange=size(chi))
+    @parallel (2:size(p,1)-1, 2:size(p,2)-1,2:size(p,3)-1) update_p_kernel!(p, chi, w, tensor, mask, mask0, sigma, alphainv, resinv[1], resinv[2], resinv[3])
 end
 
-@kernel function update_p_kernel!(p, chi, w, mask, mask0, sigma, alphainv, resinv)
+@parallel_indices (i,j,k) function update_p_kernel!(p, chi, w, tensor, mask, mask0, sigma, alphainv, resinv1, resinv2, resinv3)
     type = eltype(p)
 
-    i, j, k = @index(Global, NTuple)
+    # i, j, k = @index(Global, NTuple)
     x, y, z = size(p)
 
     chi0 = chi[i, j, k]
 
-    dxp = (i < x) ? (chi[i+1, j, k] - chi0) * resinv[1] : zero(type)
-    dyp = (j < y) ? (chi[i, j+1, k] - chi0) * resinv[2] : zero(type)
-    dzp = (k < z) ? (chi[i, j, k+1] - chi0) * resinv[3] : zero(type)
+    dxp = (i < x) ? (chi[i+1, j, k] - chi0) * resinv1 : zero(type)
+    dyp = (j < y) ? (chi[i, j+1, k] - chi0) * resinv2 : zero(type)
+    dzp = (k < z) ? (chi[i, j, k+1] - chi0) * resinv3 : zero(type)
 
     sigmaw0 = sigma * mask0[i, j, k]
     sigmaw = sigma * mask[i, j, k]
 
-    px = p[i, j, k, 1] + sigmaw0 * dxp - sigmaw * w[i, j, k, 1]
-    py = p[i, j, k, 2] + sigmaw0 * dyp - sigmaw * w[i, j, k, 2]
-    pz = p[i, j, k, 3] + sigmaw0 * dzp - sigmaw * w[i, j, k, 3]
+    grad = (dxp, dyp, dzp)
+    grad_minus_w = sigmaw0 .* grad .- sigmaw .* (w[i, j, k, 1], w[i, j, k, 2], w[i, j, k, 3])
+    
+    t123 = (tensor[i,j,k,1], tensor[i,j,k,2], tensor[i,j,k,3])
+    t245 = (tensor[i,j,k,2], tensor[i,j,k,4], tensor[i,j,k,5])
+    t356 = (tensor[i,j,k,3], tensor[i,j,k,5], tensor[i,j,k,6])
+    px = p[i, j, k, 1] + sum(t123 .* grad_minus_w)
+    py = p[i, j, k, 2] + sum(t245 .* grad_minus_w)
+    pz = p[i, j, k, 3] + sum(t356 .* grad_minus_w)
+
     pabs = sqrt(px * px + py * py * pz * pz) * alphainv
     pabs = (pabs > 1) ? 1 / pabs : one(type)
 
     p[i, j, k, 1] = px * pabs
     p[i, j, k, 2] = py * pabs
     p[i, j, k, 3] = pz * pabs
+    return
 end
 
 # Update q <- P_{||.||_\infty <= alpha}(q + sigma*weight*symgrad(u)). 

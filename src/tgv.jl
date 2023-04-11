@@ -3,21 +3,23 @@ function qsm_full(phase, mask, res; kw...)
     return qsm_tgv(laplace_phi0, mask, res; kw...)
 end
 
-function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], alpha=(0.0015, 0.0005), iterations=1000, erosions=3, type=Float32, gpu=false)
+function qsm_tgv(laplace_phi0, tensor, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], alpha=(0.0015, 0.0005), sigma=0.8, iterations=1000, erosions=3, type=Float32, gpu=false)
     device, cu = if gpu
         CUDADevice(), CUDA.cu
     else
         CPU(), identity
     end
 
+    mask_orig = copy(mask)
     for _ in 1:erosions
         mask = erode_mask(mask)
     end
 
+    tensor = cu(tensor)
     laplace_phi0 = cu(copy(laplace_phi0))
-
     mask0 = cu(erode_mask(mask))
     mask = cu(mask)
+    
     # initialize primal variables
     chi = cu(zeros(type, size(laplace_phi0)))
     chi_ = cu(zeros(type, size(laplace_phi0)))
@@ -59,7 +61,7 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
     res_inv_dim4 = cu(reshape(res .^ -1, 1, 1, 1, 3))
 
     synchronize()
-    for k in 1:iterations
+    @time for k in 1:iterations
 
         tau = 1 / sqrt(norm_sqr)
         sigma = (1 / norm_sqr) / tau # TODO they are always identical
@@ -68,7 +70,7 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
         # dual update
 
         thread_eta = tgv_update_eta!(eta, phi_, chi_, laplace_phi0, mask0, sigma, res, omega; cu, device)
-        thread_p = tgv_update_p!(p, chi_, w_, mask, mask0, sigma, alpha1, res; cu, device)
+        thread_p = tgv_update_p!(p, chi_, w_, tensor, mask, mask0, sigma, alpha1, res; cu, device)
         thread_q = tgv_update_q!(q, w_, mask0, sigma, alpha0, res; cu, device)
         wait(thread_eta)
         wait(thread_p)
@@ -84,8 +86,8 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
         ###############
         # primal update
         thread_phi = tgv_update_phi!(phi, phi_, eta, mask, mask0, tau, res; cu, device)
-        thread_chi = tgv_update_chi!(chi, chi_, eta, p, mask0, tau, res, omega; cu, device)
-        thread_w = tgv_update_w!(w, w_, p, q, mask, mask0, tau, res, res_inv_dim4, qx_alloc, qy_alloc, qz_alloc; cu, device)
+        thread_chi = tgv_update_chi!(chi, chi_, eta, p, tensor, mask0, tau, res, omega; cu, device)
+        thread_w = tgv_update_w!(w, w_, p, q, tensor, mask, mask0, tau, res, res_inv_dim4, qx_alloc, qy_alloc, qz_alloc; cu, device)
         wait(thread_phi)
         wait(thread_chi)
         wait(thread_w)
@@ -185,7 +187,128 @@ function erode_mask(mask)
     return [erode_vox(I) for I in eachindex(IndexCartesian(), mask)]
 end
 
+function erode_mask(mask, erosions)
+    mask = copy(mask)
+    for _ in 1:erosions
+        mask = erode_mask(mask)
+    end
+    return mask
+end
+
 function scale(TE, fieldstrength)
     GAMMA = 42.5781
     return 2pi * TE * fieldstrength * GAMMA
+end
+
+function st_gauss(magnitude,mask, mask_orig,sigma; type=Float32)
+    N=size(magnitude)
+    ND=N[1]*N[2]*N[3]
+    @time begin
+    x_sobel = -Kernel.sobel((true,true,true), 1)[1]
+    y_sobel = -Kernel.sobel((true,true,true), 2)[1]
+    z_sobel = -Kernel.sobel((true,true,true), 3)[1]
+          
+    dex = imfilter(magnitude, x_sobel) .* mask
+    dey = imfilter(magnitude, y_sobel) .* mask
+    dez = imfilter(magnitude, z_sobel) .* mask
+
+    #orientation tensor
+    J011=dex.*dex
+    J012=dex.*dey
+    J013=dex.*dez
+    J022=dey.*dey
+    J023=dey.*dez
+    J033=dez.*dez
+    end
+
+    #structure tensor independent dimentions
+    @time begin
+    gaussian = Kernel.gaussian((sigma, sigma, sigma), (9,9,9))
+    J11_smooth=imfilter(J011, gaussian, "symmetric")
+    J12_smooth=imfilter(J012, gaussian, "symmetric")
+    J13_smooth=imfilter(J013, gaussian, "symmetric")
+    J22_smooth=imfilter(J022, gaussian, "symmetric")
+    J23_smooth=imfilter(J023, gaussian, "symmetric")
+    J33_smooth=imfilter(J033, gaussian, "symmetric")
+    end
+    #structure tensor in matrix 3x3
+    @time begin
+    J=zeros(type, (N[1],N[2],N[3],3,3))
+    J[:,:,:,1,1]=J11_smooth
+    J[:,:,:,1,2]=J12_smooth
+    J[:,:,:,1,3]=J13_smooth
+    J[:,:,:,2,1]=J12_smooth
+    J[:,:,:,2,2]=J22_smooth
+    J[:,:,:,2,3]=J23_smooth
+    J[:,:,:,3,1]=J13_smooth
+    J[:,:,:,3,2]=J23_smooth
+    J[:,:,:,3,3]=J33_smooth
+    end
+    # eigen decomposition for eigenvalues modification
+    # w,v=linalg.eig(J)
+    # @time eig = mapslices(eigen, J; dims=(4,5))
+    @time v, w = eig_comp(J)
+    # w_array=reshape(w,(ND,3))   #array of pixels
+    # v_array=reshape(v,(ND,3,3))
+    # ind_w=sortperm(w_array; dims=4)
+    # static_ind_w=CartesienIndices((ND,3))
+    # w_array_sort=w_array[static_ind_w,ind_w]
+    # static_ind_v=CartesienIndices((ND,3,3))        
+    # ind_col_v=ind_w[static_ind_w]
+    # v_array_sort=v_array[static_ind_v[0],static_ind_v[1],ind_col_v] 
+    
+    # w=reshape(w_array_sort,(N[0],N[1],N[2],3))
+    # v=reshape(v_array_sort,(N[0],N[1],N[2],3,3))
+    # eig = dropdims(eig; dims=(4,5))
+    # v = [[e.vectors[i,j] for e in eig] for i in 1:3, j in 1:3]
+    # w = [e.values[i] for e in eig[:,:,:], i in 1:3]
+    @time l = scale_w_adaptive(w, mask_orig, type)
+    @time wmod= @. 1/(1+l*w^4)
+
+    @time begin
+    structure_tensor=zeros(type, (size(wmod)[1:3]...,6))
+    @. structure_tensor[:,:,:,1]=(((v[:,:,:,1,1]*v[:,:,:,1,1])*wmod[:,:,:,1])+(v[:,:,:,1,2]^2)*wmod[:,:,:,2]+(v[:,:,:,1,3]^2)*wmod[:,:,:,3])   
+    @. structure_tensor[:,:,:,2]=(((v[:,:,:,1,1]*v[:,:,:,2,1])*wmod[:,:,:,1])+(v[:,:,:,1,2]*v[:,:,:,2,2])*wmod[:,:,:,2]+(v[:,:,:,1,3]*v[:,:,:,2,3])*wmod[:,:,:,3])
+    @. structure_tensor[:,:,:,3]=(((v[:,:,:,1,1]*v[:,:,:,3,1])*wmod[:,:,:,1])+(v[:,:,:,1,2]*v[:,:,:,3,2])*wmod[:,:,:,2]+(v[:,:,:,1,3]*v[:,:,:,3,3])*wmod[:,:,:,3])
+    @. structure_tensor[:,:,:,4]=(((v[:,:,:,2,1]^2)*wmod[:,:,:,1])+(v[:,:,:,2,2]^2)*wmod[:,:,:,2]+(v[:,:,:,2,3]^2)*wmod[:,:,:,3])
+    @. structure_tensor[:,:,:,5]=(((v[:,:,:,2,1]*v[:,:,:,3,1])*wmod[:,:,:,1])+(v[:,:,:,2,2]*v[:,:,:,3,2])*wmod[:,:,:,2]+(v[:,:,:,2,3]*v[:,:,:,3,3])*wmod[:,:,:,3])
+    @. structure_tensor[:,:,:,6]=(((v[:,:,:,3,1]^2)*wmod[:,:,:,1])+(v[:,:,:,3,2]^2)*wmod[:,:,:,2]+(v[:,:,:,3,3]^2)*wmod[:,:,:,3]) 
+    end
+    return (structure_tensor,wmod,v,l)
+end
+
+function scale_w_adaptive(w, mask, type)
+    max_tries = 10e3
+    grad=zeros(type, (size(mask)...,3))
+    wmod = similar(w)
+    totpi=sum(mask)
+    l = 1e-7
+    for _ = 1:max_tries
+        
+        @. wmod = 1 / (1 + l * (w^4))
+        @. grad[:,:,:,1]=(wmod[:,:,:,1]<0.3)*mask
+        @. grad[:,:,:,2]=(wmod[:,:,:,2]<0.3)*mask
+        @. grad[:,:,:,3]=(wmod[:,:,:,3]<0.3)*mask
+        
+        wgrad=sum(grad)
+        @show wgrad / totpi
+        if wgrad>=0.1*totpi
+            return l
+        end
+        l *= 1.1
+    end
+    return l
+end
+
+function eig_comp(J)
+    eigvec = zeros(size(J)...);
+    eigval = zeros(size(J)[1:4]...);
+    for i in axes(J,1), j in axes(J,2)
+        Threads.@threads for k in axes(J,3)
+            e = eigen(view(J,i,j,k,:,:))
+            eigvec[i,j,k,:,:] .= e.vectors
+            eigval[i,j,k,:] .= e.values
+        end
+    end
+    return (eigvec, eigval)
 end

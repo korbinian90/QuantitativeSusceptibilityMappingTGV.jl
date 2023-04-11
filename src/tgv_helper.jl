@@ -40,14 +40,14 @@ end
 end
 
 # Update p <- P_{||.||_\infty <= alpha}(p + sigma*(mask0*grad(phi_f) - mask*w). 
-function tgv_update_p!(p, chi, w, mask, mask0, sigma, alpha, res; cu=cu, device=CUDADevice(), nblocks=64)
+function tgv_update_p!(p, chi, w, tensor, mask, mask0, sigma, alpha, res; cu=cu, device=CUDADevice(), nblocks=64)
     alphainv = 1 / alpha
     resinv = cu(1 ./ res)
 
-    update_p_kernel!(device, nblocks)(p, chi, w, mask, mask0, sigma, alphainv, resinv; ndrange=size(chi))
+    update_p_kernel!(device, nblocks)(p, chi, w, tensor, mask, mask0, sigma, alphainv, resinv; ndrange=size(chi))
 end
 
-@kernel function update_p_kernel!(p, chi, w, mask, mask0, sigma, alphainv, resinv)
+@kernel function update_p_kernel!(p, chi, w, tensor, mask, mask0, sigma, alphainv, resinv)
     type = eltype(p)
 
     i, j, k = @index(Global, NTuple)
@@ -62,9 +62,16 @@ end
     sigmaw0 = sigma * mask0[i, j, k]
     sigmaw = sigma * mask[i, j, k]
 
-    px = p[i, j, k, 1] + sigmaw0 * dxp - sigmaw * w[i, j, k, 1]
-    py = p[i, j, k, 2] + sigmaw0 * dyp - sigmaw * w[i, j, k, 2]
-    pz = p[i, j, k, 3] + sigmaw0 * dzp - sigmaw * w[i, j, k, 3]
+    grad = (dxp, dyp, dzp)
+    grad_minus_w = sigmaw0 .* grad .- sigmaw .* (w[i, j, k, 1], w[i, j, k, 2], w[i, j, k, 3])
+
+    t123 = (tensor[i,j,k,1], tensor[i,j,k,2], tensor[i,j,k,3])
+    t245 = (tensor[i,j,k,2], tensor[i,j,k,4], tensor[i,j,k,5])
+    t356 = (tensor[i,j,k,3], tensor[i,j,k,5], tensor[i,j,k,6])
+    px = p[i, j, k, 1] + sum(t123 .* grad_minus_w)
+    py = p[i, j, k, 2] + sum(t245 .* grad_minus_w)
+    pz = p[i, j, k, 3] + sum(t356 .* grad_minus_w)
+
     pabs = sqrt(px * px + py * py * pz * pz) * alphainv
     pabs = (pabs > 1) ? 1 / pabs : one(type)
 
@@ -72,6 +79,41 @@ end
     p[i, j, k, 2] = py * pabs
     p[i, j, k, 3] = pz * pabs
 end
+
+# __kernel void tgv_update_p(__global float3 *p, __global float *chi,
+#                            __global float3 *w, __global float8 *tensor,
+#                            __global int *mask,
+#                            const float sigma,
+#                            const float alpha,
+#                            const float res0fac,
+#                            const float res1fac, const float res2fac) {
+#   // p <- P_{||p||_\infty \leq \alpha}(p + sigma*(grad(chi) - w))
+#   SETUP_INDICES
+
+#   if CENTER {
+#     float3 grad, p_;
+#     float pabs;
+
+#     GRAD(CHI, grad, res0fac, res1fac, res2fac)
+#     p_ = p[i] + sigma*tensormul(tensor[i], grad - w[i]);
+#     pabs = rsqrt(dot(p_,p_))*alpha;
+#     if (pabs < 1.0f) p_ *= pabs;
+#     p[i] = p_;
+#   }
+# }
+
+# #define GRAD(u, v, fac1, fac2, fac3)                 \
+# { float u0, ux, uy, uz;                            \
+# u0 = u(i);                                       \
+# ux = RIGHT ? u(i+1)    - u0 : 0.0f;              \
+# uy = BELOW ? u(i+Nx)   - u0 : 0.0f;              \
+# uz = AFTER ? u(i+NxNy) - u0 : 0.0f;              \
+# v = (float3)(ux*(fac1), uy*(fac2), uz*(fac3)); }
+
+# inline float3 tensormul(float8 A, float3 x) {
+#   return((float3)(dot(A.s012, x), dot(A.s134, x), dot(A.s245, x)));
+#  }
+
 
 # Update q <- P_{||.||_\infty <= alpha}(q + sigma*weight*symgrad(u)). 
 function tgv_update_q!(q, u, weight, sigma, alpha, res; cu=cu, device=CUDADevice(), nblocks=64)
@@ -165,28 +207,43 @@ end
 end
 
 # Update chi_dest <- chi + tau*(div(p) - wave(mask*v)). 
-function tgv_update_chi!(chi_dest, chi, v, p, mask0, tau, res, omega; cu=cu, device=CUDADevice(), nblocks=64)
+function tgv_update_chi!(chi_dest, chi, v, p, tensor, mask0, tau, res, omega; cu=cu, device=CUDADevice(), nblocks=64)
     resinv = cu(1 ./ res)
     wresinv = cu([1 / 3, 1 / 3, -2 / 3] ./ (res .^ 2))
 
-    update_chi_kernel!(device, nblocks)(chi_dest, chi, v, p, mask0, tau, resinv, wresinv; ndrange=size(chi_dest))
+    update_chi_kernel!(device, nblocks)(chi_dest, chi, v, p, tensor, mask0, tau, resinv, wresinv; ndrange=size(chi_dest))
 end
 
-@kernel function update_chi_kernel!(chi_dest, chi, v, p, mask0, tau, resinv, wresinv)
+@kernel function update_chi_kernel!(chi_dest, chi, v, p, tensor, mask0, tau, resinv, wresinv)
     i, j, k = @index(Global, NTuple)
     x, y, z = size(chi_dest)
 
     m0 = mask0[i, j, k]
 
+    t123 = (tensor[i,j,k,1], tensor[i,j,k,2], tensor[i,j,k,3])
+    t245 = (tensor[i,j,k,2], tensor[i,j,k,4], tensor[i,j,k,5])
+    t356 = (tensor[i,j,k,3], tensor[i,j,k,5], tensor[i,j,k,6])
+    p_ = (p[i, j, k, 1], p[i, j, k, 2], p[i, j, k, 3])
+    p1 = sum(t123 .* p_)
+    p2 = sum(t245 .* p_)
+    p3 = sum(t356 .* p_)
+
     # compute div(weight*v)
-    div = (i < x) ? m0 * p[i, j, k, 1] * resinv[1] : 0
-    div = (i > 1) ? div - mask0[i-1, j, k] * p[i-1, j, k, 1] * resinv[1] : div
-
-    div = (j < y) ? div + m0 * p[i, j, k, 2] * resinv[2] : div
-    div = (j > 1) ? div - mask0[i, j-1, k] * p[i, j-1, k, 2] * resinv[2] : div
-
-    div = (k < z) ? div + m0 * p[i, j, k, 3] * resinv[3] : div
-    div = (k > 1) ? div - mask0[i, j, k-1] * p[i, j, k-1, 3] * resinv[3] : div
+    div = (i < x) ? m0 * p1 * resinv[1] : 0
+    if i > 1
+        px = sum(t123 .* (p[i-1, j, k, 1], p[i-1, j, k, 2], p[i-1, j, k, 3]))
+        div = div - mask0[i-1, j, k] * px * resinv[1]
+    end
+    div = (j < y) ? div + m0 * p2 * resinv[2] : div
+    if j > 1
+        py = sum(t245 .* (p[i, j-1, k, 1], p[i, j-1, k, 2], p[i, j-1, k, 3]))
+        div = div - mask0[i, j-1, k] * py * resinv[2]
+    end
+    div = (k < z) ? div + m0 * p3 * resinv[3] : div
+    if k > 1
+        pz = sum(t356 .* (p[i, j, k-1, 1], p[i, j, k-1, 2], p[i, j, k-1, 3]))
+        div = div - mask0[i, j, k-1] * pz * resinv[3]
+    end
 
     # compute wave(mask*v)
     v0 = m0 * v[i, j, k]
@@ -203,15 +260,63 @@ end
 
     chi_dest[i, j, k] = chi[i, j, k] + tau * (div - wave)
 end
+# __kernel void tgv_update_chi(__global float *chi_dest, __global float *chi,
+#                              __global float *eta, __global float3 *p,
+#                              __global float8 *tensor,
+#                              __global int *mask, const float tau,
+#                              const float res0fac, const float res1fac,
+#                              const float res2fac, const float res0fac2,
+#                              const float res1fac2, const float res2fac2) {
+#   // chi_dest <- chi + tau*(div(p) - wave_ad(eta))
+#   SETUP_INDICES
+
+#   if CENTER {
+#     float div, wave;
+
+#     DIV(TENSORP, div, res0fac, res1fac, res2fac)
+#     DIFF2OPAD(ETA, wave, res0fac2, res1fac2, res2fac2)
+#     chi_dest[i] = chi[i] + tau*(div - wave);
+#   }
+# }
+
+#define TENSORP(i) tensormul(tensor[i], p[i])
+
+# #define DIV(u, v, fac1, fac2, fac3) \
+# { float3 u0; float _div;          \
+# u0   = u(i);                    \
+# _div = u0.x;                    \
+# if LEFT   _div -= u(i-1).x;     \
+# v  = _div*(fac1);               \
+# _div  = u0.y;                   \
+# if ABOVE  _div -= u(i-Nx).y;    \
+# v += _div*(fac2);               \
+# _div  = u0.z;                   \
+# if BEFORE _div -= u(i-NxNy).z;  \
+# v += _div*(fac3); }
+
+# #define DIFF2OPAD(u, v, fac1, fac2, fac3)  \
+# { float u02, u0m, u0p;                   \
+# u02  = INNER  ? 2.0f*u(i) : 0.0f;      \
+# u0m = LEFT   ? u(i-1)    : 0.0f;       \
+# u0p = RIGHT  ? u(i+1)    : 0.0f;       \
+# v  = (u0m + u0p - u02)*(fac1);         \
+# u0m = ABOVE  ? u(i-Nx)   : 0.0f;       \
+# u0p = BELOW  ? u(i+Nx)   : 0.0f;       \
+# v += (u0m + u0p - u02)*(fac2);         \
+# u0m = BEFORE ? u(i-NxNy) : 0.0f;       \
+# u0p = AFTER  ? u(i+NxNy) : 0.0f;       \
+# v += (u0m + u0p - u02)*(fac3); }
+# """
+
 
 # Update w_dest <- w + tau*(mask*p + div(mask0*q)). 
-function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res, resinv_dim4, qx, qy, qz; cu=cu, device=CUDADevice(), nblocks=64)
+function tgv_update_w!(w_dest, w, p, q, tensor, mask, mask0, tau, res, resinv_dim4, qx, qy, qz; cu=cu, device=CUDADevice(), nblocks=64)
     resinv = cu(1 ./ res)
 
-    update_w_kernel!(device, nblocks)(w_dest, w, p, q, mask, mask0, tau, resinv; ndrange=size(mask0))
+    update_w_kernel!(device, nblocks)(w_dest, w, p, q, tensor, mask, mask0, tau, resinv; ndrange=size(mask0))
 end
 
-@kernel function update_w_kernel!(w_dest, w, p, q, mask, mask0, tau, resinv)
+@kernel function update_w_kernel!(w_dest, w, p, q, tensor, mask, mask0, tau, resinv)
     type = eltype(w_dest)
 
     i, j, k = @index(Global, NTuple)
@@ -245,10 +350,34 @@ end
 
     m0 = mask[i, j, k]
 
-    w_dest[i, j, k, 1] = w[i, j, k, 1] + tau * (m0 * p[i, j, k, 1] + q0x + q1y + q2z)
-    w_dest[i, j, k, 2] = w[i, j, k, 2] + tau * (m0 * p[i, j, k, 2] + q1x + q3y + q4z)
-    w_dest[i, j, k, 3] = w[i, j, k, 3] + tau * (m0 * p[i, j, k, 3] + q2x + q4y + q5z)
+    t123 = (tensor[i,j,k,1], tensor[i,j,k,2], tensor[i,j,k,3])
+    t245 = (tensor[i,j,k,2], tensor[i,j,k,4], tensor[i,j,k,5])
+    t356 = (tensor[i,j,k,3], tensor[i,j,k,5], tensor[i,j,k,6])
+    p_ = (p[i, j, k, 1], p[i, j, k, 2], p[i, j, k, 3])
+    p1 = sum(t123 .* p_)
+    p2 = sum(t245 .* p_)
+    p3 = sum(t356 .* p_)
+
+    w_dest[i, j, k, 1] = w[i, j, k, 1] + tau * (m0 * p1 + q0x + q1y + q2z)
+    w_dest[i, j, k, 2] = w[i, j, k, 2] + tau * (m0 * p2 + q1x + q3y + q4z)
+    w_dest[i, j, k, 3] = w[i, j, k, 3] + tau * (m0 * p3 + q2x + q4y + q5z)
 end
+
+# __kernel void tgv_update_w(__global float3 *w_dest, __global float3 *w,
+#                            __global float3 *p, __global float8 *q,
+#                            __global float8 *tensor, __global int *mask,
+#                            const float tau, const float res0fac,
+#                            const float res1fac, const float res2fac) {
+#   // w_dest <- w + tau*(p + div(q))
+#   SETUP_INDICES
+
+#   if CENTER {
+#     float3 div, val;
+
+#     SYMDIV(Q, div, res0fac, res1fac, res2fac)
+#     w_dest[i] = w[i] + tau*(tensormul(tensor[i], p[i]) + div);
+#   }  
+# }
 
 function extragradient_update(u_, u)
     u_ .= 2 .* u .- u_

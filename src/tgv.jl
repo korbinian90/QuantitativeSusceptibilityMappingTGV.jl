@@ -245,20 +245,8 @@ function st_gauss(magnitude,mask, mask_orig,sigma; type=Float32)
     J[:,:,:,3,3]=J33_smooth
     end
     # eigen decomposition for eigenvalues modification
-    # w,v=linalg.eig(J)
+    @time v, w = eigen_decomposition(J)
     # @time eig = mapslices(eigen, J; dims=(4,5))
-    @time v, w = eig_comp(J)
-    # w_array=reshape(w,(ND,3))   #array of pixels
-    # v_array=reshape(v,(ND,3,3))
-    # ind_w=sortperm(w_array; dims=4)
-    # static_ind_w=CartesienIndices((ND,3))
-    # w_array_sort=w_array[static_ind_w,ind_w]
-    # static_ind_v=CartesienIndices((ND,3,3))        
-    # ind_col_v=ind_w[static_ind_w]
-    # v_array_sort=v_array[static_ind_v[0],static_ind_v[1],ind_col_v] 
-    
-    # w=reshape(w_array_sort,(N[0],N[1],N[2],3))
-    # v=reshape(v_array_sort,(N[0],N[1],N[2],3,3))
     # eig = dropdims(eig; dims=(4,5))
     # v = [[e.vectors[i,j] for e in eig] for i in 1:3, j in 1:3]
     # w = [e.values[i] for e in eig[:,:,:], i in 1:3]
@@ -300,7 +288,7 @@ function scale_w_adaptive(w, mask, type)
     return l
 end
 
-function eig_comp(J)
+function eigen_decomposition(J)
     eigvec = zeros(size(J)...);
     eigval = zeros(size(J)[1:4]...);
     for i in axes(J,1), j in axes(J,2)

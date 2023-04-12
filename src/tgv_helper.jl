@@ -72,7 +72,7 @@ end
     py = p[i, j, k, 2] + sum(t245 .* grad_minus_w)
     pz = p[i, j, k, 3] + sum(t356 .* grad_minus_w)
 
-    pabs = sqrt(px * px + py * py * pz * pz) * alphainv
+    pabs = sqrt(px * px + py * py + pz * pz) * alphainv
     pabs = (pabs > 1) ? 1 / pabs : one(type)
 
     p[i, j, k, 1] = px * pabs

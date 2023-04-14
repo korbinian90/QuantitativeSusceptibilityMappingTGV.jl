@@ -14,6 +14,13 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
         mask = erode_mask(mask)
     end
 
+    res_chi = zeros(type, size(laplace_phi0))
+    # get smaller views for only the area inside the mask
+    cut_indices = mask_box_indices(mask)
+    laplace_phi0 = view(laplace_phi0, cut_indices...)
+    mask = view(mask, cut_indices...)
+    res_chi_view = view(res_chi, cut_indices...)
+
     laplace_phi0 = cu(copy(laplace_phi0))
 
     mask0 = cu(erode_mask(mask))
@@ -100,7 +107,9 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
         end
     end
 
-    return chi ./ scale(TE, fieldstrength)
+    res_chi_view .= Array(chi) ./ scale(TE, fieldstrength)
+
+    return res_chi
 end
 
 function laplacian(phase, res)
@@ -188,4 +197,13 @@ end
 function scale(TE, fieldstrength)
     GAMMA = 42.5781
     return 2pi * TE * fieldstrength * GAMMA
+end
+
+# get indices for the smallest box that contains the mask
+function mask_box_indices(mask)
+    function get_range(mask, dims)
+        mask_projection = dropdims(reduce(max, mask; dims); dims)
+        return findfirst(mask_projection):findlast(mask_projection)
+    end
+    return [get_range(mask, dims) for dims in [(2,3), (1,3), (1,2)]]
 end

@@ -54,49 +54,12 @@ end
     return
 end
 
-
-# Update p <- P_{||.||_\infty <= alpha}(p + sigma*(mask0*grad(phi_f) - mask*w). 
-
-
-@kernel function update_eta_kernel!(eta, phi, chi, laplace_phi0, mask, sigma, resinv, wresinv)
-    i, j, k = @index(Global, NTuple)
-    x, y, z = size(phi)
-
-    # compute -laplace(phi)
-    A0 = phi[i, j, k]
-    A1m = phi[i-1, j, k] 
-    A1p = phi[i+1, j, k] 
-    A2m = phi[i, j-1, k] 
-    A2p = phi[i, j+1, k] 
-    A3m = phi[i, j, k-1] 
-    A3p = phi[i, j, k+1] 
-
-    laplace = (2A0 - A1m - A1p) * resinv[1] +
-              (2A0 - A2m - A2p) * resinv[2] +
-              (2A0 - A3m - A3p) * resinv[3]
-
-    # compute wave(chi)
-    chi0 = chi[i, j, k]
-    chi1m = chi[i-1, j, k] 
-    chi1p = chi[i+1, j, k] 
-    chi2m = chi[i, j-1, k] 
-    chi2p = chi[i, j+1, k] 
-    chi3m = chi[i, j, k-1] 
-    chi3p = chi[i, j, k+1] 
-
-    wave = (-2chi0 + chi1m + chi1p) * wresinv[1] +
-           (-2chi0 + chi2m + chi2p) * wresinv[2] +
-           (-2chi0 + chi3m + chi3p) * wresinv[3]
-
-    eta[i, j, k] += sigma * mask[i, j, k] * (laplace + wave - laplace_phi0[i, j, k])
-end
-
 # Update p <- P_{||.||_\infty <= alpha}(p + sigma*(mask0*grad(phi_f) - mask*w). 
 function tgv_update_p!(p, chi, w, tensor, mask, mask0, sigma, alpha, res)
     alphainv = 1 / alpha
     resinv = 1 ./ res
 
-    @parallel (2:size(p,1)-1, 2:size(p,2)-1,2:size(p,3)-1) update_p_kernel!(p, chi, w, tensor, mask, mask0, sigma, alphainv, resinv[1], resinv[2], resinv[3])
+    @parallel (2:size(chi, 1)-1, 2:size(chi, 2)-1, 2:size(chi, 3)-1) update_p_kernel!(p, chi, w, tensor, mask, mask0, sigma, alphainv, resinv[1], resinv[2], resinv[3])
 end
 
 @parallel_indices (i,j,k) function update_p_kernel!(p, chi, w, tensor, mask, mask0, sigma, alphainv, resinv1, resinv2, resinv3)
@@ -133,7 +96,7 @@ function tgv_update_q!(q, u, weight, sigma, alpha, res)
     alphainv = 1 / alpha
     resinv = 1 ./ res
 
-    @parallel (2:size(q,1)-1, 2:size(q,2)-1,2:size(q,3)-1) update_q_kernel!(q, u, weight, sigma, alphainv, resinv...)
+    @parallel (2:size(q, 2)-1, 2:size(q, 3)-1, 2:size(q, 4)-1) update_q_kernel!(q, u, weight, sigma, alphainv, resinv...)
 end
 
 @parallel_indices (i,j,k) function update_q_kernel!(q, u, weight, sigma, alphainv, resinv1, resinv2, resinv3)
@@ -256,7 +219,7 @@ end
 # Update w_dest <- w + tau*(mask*p + div(mask0*q)). 
 function tgv_update_w!(w_dest, w, p, q, tensor, mask, mask0, tau, res)
     resinv = 1 ./ res
-    indices = (2:size(w_dest,1)-1, 2:size(w_dest,2)-1,2:size(w_dest,3)-1)
+    indices = (2:size(w_dest, 2)-1, 2:size(w_dest, 3)-1, 2:size(w_dest, 4)-1)
 
     @parallel indices update_w_kernel!(w_dest, w, p, q, tensor, mask, mask0, tau, resinv...)
 end

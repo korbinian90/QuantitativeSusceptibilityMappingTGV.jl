@@ -65,7 +65,9 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
 
     res_inv_dim4 = cu(reshape(res .^ -1, 1, 1, 1, 3))
 
-    synchronize()
+    if gpu
+        synchronize()
+    end
     for k in 1:iterations
 
         tau = 1 / sqrt(norm_sqr)

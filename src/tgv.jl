@@ -119,7 +119,7 @@ function qsm_tgv(laplace_phi0, mask, res; mag=nothing, TE, fieldstrength=3, omeg
     return res_chi
 end
 
-function laplacian(phase, res)
+function laplacian(phase, res) # not good for TGV
     sz = size(phase)
     padded_indices = (0:sz[1]+1, 0:sz[2]+1, 0:sz[3]+1)
     phase_pad = PaddedView(0, phase, padded_indices)
@@ -153,38 +153,28 @@ function get_laplace_phase3(phase, res)
     (Iz, Jz) = get_best_local_h1(dz, axis=3)
 
     laplace_phi = (-2.0 * phase[1:end-1, 1:end-1, 1:end-1] +
-                   (phase[0:end-2, 1:end-1, 1:end-1] + 2 * pi * Ix) +
-                   (phase[2:end, 1:end-1, 1:end-1] + 2 * pi * Jx)) / (res[1]^2)
+                   (phase[0:end-2, 1:end-1, 1:end-1] + 2pi * Ix) +
+                   (phase[2:end, 1:end-1, 1:end-1] + 2pi * Jx)) / (res[1]^2)
 
     laplace_phi += (-2.0 * phase[1:end-1, 1:end-1, 1:end-1] +
-                    (phase[1:end-1, 0:end-2, 1:end-1] + 2 * pi * Iy) +
-                    (phase[1:end-1, 2:end, 1:end-1] + 2 * pi * Jy)) / (res[2]^2)
+                    (phase[1:end-1, 0:end-2, 1:end-1] + 2pi * Iy) +
+                    (phase[1:end-1, 2:end, 1:end-1] + 2pi * Jy)) / (res[2]^2)
 
     laplace_phi += (-2.0 * phase[1:end-1, 1:end-1, 1:end-1] +
-                    (phase[1:end-1, 1:end-1, 0:end-2] + 2 * pi * Iz) +
-                    (phase[1:end-1, 1:end-1, 2:end] + 2 * pi * Jz)) / (res[3]^2)
+                    (phase[1:end-1, 1:end-1, 0:end-2] + 2pi * Iz) +
+                    (phase[1:end-1, 1:end-1, 2:end] + 2pi * Jz)) / (res[3]^2)
 
     return laplace_phi
 end
 
 function get_best_local_h1(dx; axis=1)
-    F_shape = collect(size(dx))
+    F_shape = [size(dx)..., 3, 3]
     F_shape[axis] -= 1
-    push!(F_shape, 3)
-    push!(F_shape, 3)
 
     F = zeros(eltype(dx), Tuple(F_shape))
-    for i in -1:1
-        for j in -1:1
-            F[:, :, :, i+2, j+2] =
-                if axis == 1
-                    (dx[1:end-1, :, :] .- (2pi * i)) .^ 2 + (dx[2:end, :, :] .+ (2pi * j)) .^ 2
-                elseif axis == 2
-                    (dx[:, 1:end-1, :] .- (2pi * i)) .^ 2 + (dx[:, 2:end, :] .+ (2pi * j)) .^ 2
-                elseif axis == 3
-                    (dx[:, :, 1:end-1] .- (2pi * i)) .^ 2 + (dx[:, :, 2:end] .+ (2pi * j)) .^ 2
-                end
-        end
+    for i in -1:1, j in -1:1
+        F[:, :, :, i+2, j+2] = (selectdim(dx, axis, 1:size(dx, axis)-1) .- (2pi * i)) .^ 2
+        F[:, :, :, i+2, j+2] += (selectdim(dx, axis, 2:size(dx, axis)) .+ (2pi * j)) .^ 2
     end
 
     G = argmin(F; dims=(4, 5))

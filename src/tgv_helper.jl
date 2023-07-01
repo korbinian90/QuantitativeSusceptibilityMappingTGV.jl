@@ -65,7 +65,7 @@ end
     px = p[i, j, k, 1] + sigmaw0 * dxp - sigmaw * w[i, j, k, 1]
     py = p[i, j, k, 2] + sigmaw0 * dyp - sigmaw * w[i, j, k, 2]
     pz = p[i, j, k, 3] + sigmaw0 * dzp - sigmaw * w[i, j, k, 3]
-    pabs = sqrt(px * px + py * py * pz * pz) * alphainv
+    pabs = sqrt(px * px + py * py + pz * pz) * alphainv
     pabs = (pabs > 1) ? 1 / pabs : one(type)
 
     p[i, j, k, 1] = px * pabs
@@ -250,6 +250,6 @@ end
     w_dest[i, j, k, 3] = w[i, j, k, 3] + tau * (m0 * p[i, j, k, 3] + q2x + q4y + q5z)
 end
 
-function extragradient_update(u_, u)
+function extragradient_update!(u_, u)
     u_ .= 2 .* u .- u_
 end

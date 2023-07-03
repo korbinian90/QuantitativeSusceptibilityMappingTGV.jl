@@ -70,10 +70,11 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
     if gpu
         KernelAbstractions.synchronize(device)
     end
-    @time for k in 1:iterations
 
-        tau = 1 / sqrt(norm_sqr)
-        sigma = (1 / norm_sqr) / tau # TODO they are always identical
+    tau = 1 / sqrt(norm_sqr)
+    sigma = (1 / norm_sqr) / tau # TODO they are always identical
+
+    @showprogress 1 "Running $iterations TGV iterations..." for k in 1:iterations
 
         #############
         # dual update

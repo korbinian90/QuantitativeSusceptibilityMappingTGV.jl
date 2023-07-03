@@ -41,12 +41,14 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
     q = cu(zeros(type, (size(laplace_phi0)..., 6)))
 
     res = type.(abs.(res))
-    # res_corr = prod(res)^(-1 / 3)
-    # res = collect(type.(abs.(res))) * res_corr
-    # alpha = collect(type.(alpha))
-    # alpha[2] *= res_corr
-    # alpha[1] *= res_corr .^ 2
-    # laplace_phi0 ./= res_corr .^ 2
+    
+    # de-dimensionalize
+    res_corr = prod(res)^(-1 / 3)
+    res .*= res_corr
+    alpha = collect(type.(alpha))
+    alpha[2] *= res_corr
+    alpha[1] *= res_corr .^ 2
+    laplace_phi0 ./= res_corr .^ 2
 
     omega = type.(omega)
     # estimate squared norm

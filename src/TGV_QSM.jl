@@ -1,6 +1,6 @@
 module TGV_QSM
 
-using CUDA, KernelAbstractions, PaddedViews, ImageMorphology, Interpolations, Rotations, OffsetArrays, StaticArrays
+using CUDA, KernelAbstractions, PaddedViews, ImageMorphology, Interpolations, Rotations, OffsetArrays, StaticArrays, ProgressMeter
 
 include("tgv.jl")
 include("tgv_helper.jl")

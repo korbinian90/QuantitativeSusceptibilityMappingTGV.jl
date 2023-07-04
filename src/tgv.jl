@@ -5,8 +5,10 @@ end
 
 function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], alpha=(0.0015, 0.0005), iterations=1000, erosions=3, type=Float32, gpu=false)
     device, cu = if gpu
+        println("Using the GPU")
         CUDA.CUDAKernels.CUDABackend(), CUDA.cu
     else
+        println("Using $(Threads.nthreads()) CPU cores")
         CPU(), identity
     end
 

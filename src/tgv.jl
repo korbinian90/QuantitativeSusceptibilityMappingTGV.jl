@@ -51,6 +51,7 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
     alpha[2] *= res_corr
     alpha[1] *= res_corr .^ 2
     laplace_phi0 ./= res_corr .^ 2
+    laplace_phi0 .-= mean(laplace_phi0[mask])
 
     omega = type.(omega)
     # estimate squared norm

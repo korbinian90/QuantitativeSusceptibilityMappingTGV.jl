@@ -3,7 +3,7 @@ function qsm_full(phase, mask, res; kw...)
     return qsm_tgv(laplace_phi0, mask, res; kw...)
 end
 
-function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], alpha=(0.003, 0.001), iterations=1000, erosions=3, type=Float32, gpu=false, box=true)
+function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=(0.003, 0.001), iterations=1000, erosions=3, type=Float32, gpu=false, nblocks=32)
     device, cu = if gpu
         println("Using the GPU")
         CUDA.CUDAKernels.CUDABackend(), CUDA.cu
@@ -31,19 +31,19 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
     chi = cu(zeros(type, size(laplace_phi0)))
     chi_ = cu(zeros(type, size(laplace_phi0)))
 
-    w = cu(zeros(type, (size(laplace_phi0)..., 3)))
-    w_ = cu(zeros(type, (size(laplace_phi0)..., 3)))
+    w = cu(zeros(type, (3, size(laplace_phi0)...)))
+    w_ = cu(zeros(type, (3, size(laplace_phi0)...)))
 
     phi = cu(zeros(type, size(laplace_phi0)))
     phi_ = cu(zeros(type, size(laplace_phi0)))
 
     # initialize dual variables
     eta = cu(zeros(type, size(laplace_phi0)))
-    p = cu(zeros(type, (size(laplace_phi0)..., 3)))
-    q = cu(zeros(type, (size(laplace_phi0)..., 6)))
+    p = cu(zeros(type, (3, size(laplace_phi0)...)))
+    q = cu(zeros(type, (6, size(laplace_phi0)...)))
 
     res = type.(abs.(res))
-    
+
     # de-dimensionalize
     res_corr = prod(res)^(-1 / 3)
     res .*= res_corr
@@ -53,7 +53,6 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
     laplace_phi0 ./= res_corr .^ 2
     laplace_phi0 .-= mean(laplace_phi0[mask])
 
-    omega = type.(omega)
     # estimate squared norm
     grad_norm_sqr = 4 * (sum(res .^ -2))
 
@@ -64,31 +63,26 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
     alpha0 = type(alpha[1])
 
     # initialize resolution
-    qx_alloc = cu(zeros(type, size(w)))
-    qy_alloc = cu(zeros(type, size(w)))
-    qz_alloc = cu(zeros(type, size(w)))
-
-    res_inv_dim4 = cu(reshape(res .^ -1, 1, 1, 1, 3))
-
-    if gpu
-        KernelAbstractions.synchronize(device)
-    end
-
     tau = 1 / sqrt(norm_sqr)
     sigma = (1 / norm_sqr) / tau # TODO they are always identical
+
+    resinv = cu(1 ./ res)
+    resinv2 = cu(res .^ -2)
+    resinv_d2 = cu(0.5 ./ res)
+    wresinv2 = cu([1 / 3, 1 / 3, -2 / 3] ./ (res .^ 2))
+
+    KernelAbstractions.synchronize(device)
 
     @showprogress 1 "Running $iterations TGV iterations..." for k in 1:iterations
 
         #############
         # dual update
-        # @sync begin
-            # Update eta <- eta + sigma*mask*(-laplace(phi) + wave(chi) - laplace_phi0). 
-            tgv_update_eta!(eta, phi_, chi_, laplace_phi0, mask0, sigma, res, omega; cu, device)
-            # Update p <- P_{||.||_\infty <= alpha}(p + sigma*(mask0*grad(phi_f) - mask*w). 
-            tgv_update_p!(p, chi_, w_, mask, mask0, sigma, alpha1, res; cu, device)
-            # Update q <- P_{||.||_\infty <= alpha}(q + sigma*weight*symgrad(u)). 
-            tgv_update_q!(q, w_, mask0, sigma, alpha0, res; cu, device)
-        # end
+        tgv_update_eta!(eta, phi_, chi_, laplace_phi0, mask0, sigma, resinv2, wresinv2, device, nblocks)
+        # KernelAbstractions.synchronize(device)
+        tgv_update_p!(p, chi_, w_, mask, mask0, sigma, alpha1, resinv, device, nblocks)
+        # KernelAbstractions.synchronize(device)
+        tgv_update_q!(q, w_, mask0, sigma, alpha0, resinv, resinv_d2, device, nblocks)
+        KernelAbstractions.synchronize(device)
 
         #######################
         # swap primal variables
@@ -98,23 +92,19 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, omega=[0, 0, 1], 
 
         ###############
         # primal update
-        # @sync begin
-            # Update phi_dest <- (phi + tau*laplace(mask0*eta))/(1+mask*tau). 
-            tgv_update_phi!(phi, phi_, eta, mask, mask0, tau, res; cu, device)
-            # Update chi_dest <- chi + tau*(div(p) - wave(mask*v)). 
-            tgv_update_chi!(chi, chi_, eta, p, mask0, tau, res, omega; cu, device)
-            # Update w_dest <- w + tau*(mask*p + div(mask0*q)). 
-            tgv_update_w!(w, w_, p, q, mask, mask0, tau, res, res_inv_dim4, qx_alloc, qy_alloc, qz_alloc; cu, device)
-        # end
-
+        tgv_update_phi!(phi, phi_, eta, mask, mask0, tau, resinv2, device, nblocks)
+        # KernelAbstractions.synchronize(device)
+        tgv_update_chi!(chi, chi_, eta, p, mask0, tau, resinv, wresinv2, device, nblocks)
+        # KernelAbstractions.synchronize(device)
+        tgv_update_w!(w, w_, p, q, mask, mask0, tau, resinv, device, nblocks)
+        KernelAbstractions.synchronize(device)
         ######################
         # extragradient update
 
-        @sync begin
-            @async extragradient_update!(phi_, phi)
-            @async extragradient_update!(chi_, chi)
-            @async extragradient_update!(w_, w)
-        end
+        extragradient_update!(phi_, phi)
+        extragradient_update!(chi_, chi)
+        extragradient_update!(w_, w)
+        KernelAbstractions.synchronize(device)
     end
 
     res_chi_view .= Array(chi) ./ scale(TE, fieldstrength)
@@ -215,5 +205,5 @@ function mask_box_indices(mask)
         mask_projection = dropdims(reduce(max, mask; dims); dims)
         return findfirst(mask_projection):findlast(mask_projection)
     end
-    return [get_range(mask, dims) for dims in [(2,3), (1,3), (1,2)]]
+    return [get_range(mask, dims) for dims in [(2, 3), (1, 3), (1, 2)]]
 end

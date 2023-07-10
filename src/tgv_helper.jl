@@ -63,8 +63,7 @@ end
 end
 
 # Update p <- P_{||.||_\infty <= alpha}(p + sigma*(mask0*grad(phi_f) - mask*w). 
-function tgv_update_p!(p, chi, w, mask, mask0, sigma, alpha, resinv, device, nblocks)
-    alphainv = 1 / alpha
+function tgv_update_p!(p, chi, w, mask, mask0, sigma, alphainv, resinv, device, nblocks)
     update_p_kernel!(device, nblocks)(p, chi, w, mask, mask0, sigma, alphainv, resinv; ndrange=size(chi))
 end
 
@@ -93,8 +92,7 @@ end
 end
 
 # Update q <- P_{||.||_\infty <= alpha}(q + sigma*weight*symgrad(u)). 
-function tgv_update_q!(q, u, weight, sigma, alpha, resinv, resinv_d2, device, nblocks)
-    alphainv = 1 / alpha
+function tgv_update_q!(q, u, weight, sigma, alphainv, resinv, resinv_d2, device, nblocks)
     update_q_kernel!(device, nblocks)(q, u, weight, sigma, alphainv, resinv, resinv_d2; ndrange=size(weight))
 end
 
@@ -152,8 +150,7 @@ end
 end
 
 # Update phi_dest <- (phi + tau*laplace(mask0*eta))/(1+mask*tau). 
-function tgv_update_phi!(phi_dest, phi, eta, mask, mask0, tau, resinv2, device, nblocks)
-    taup1inv = 1 / (tau + 1)
+function tgv_update_phi!(phi_dest, phi, eta, mask, mask0, tau, taup1inv, resinv2, device, nblocks)
     update_phi_kernel!(device, nblocks)(phi_dest, phi, eta, mask, mask0, tau, taup1inv, resinv2; ndrange=size(phi_dest))
 end
 

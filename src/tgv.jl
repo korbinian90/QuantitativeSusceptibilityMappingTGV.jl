@@ -59,12 +59,14 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=(0.003, 0.0
     norm_sqr = 2 * grad_norm_sqr^2 + 1
 
     # set regularization parameters
-    alpha1 = type(alpha[2])
-    alpha0 = type(alpha[1])
+    alpha1inv = type(1 / alpha[2])
+    alpha0inv = type(1 / alpha[1])
 
     # initialize resolution
     tau = 1 / sqrt(norm_sqr)
+    taup1inv = 1 / (tau + 1)
     sigma = (1 / norm_sqr) / tau # TODO they are always identical
+
 
     resinv = cu(1 ./ res)
     resinv2 = cu(res .^ -2)
@@ -79,9 +81,9 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=(0.003, 0.0
         # dual update
         tgv_update_eta!(eta, phi_, chi_, laplace_phi0, mask0, sigma, resinv2, wresinv2, device, nblocks)
         # KernelAbstractions.synchronize(device)
-        tgv_update_p!(p, chi_, w_, mask, mask0, sigma, alpha1, resinv, device, nblocks)
+        tgv_update_p!(p, chi_, w_, mask, mask0, sigma, alpha1inv, resinv, device, nblocks)
         # KernelAbstractions.synchronize(device)
-        tgv_update_q!(q, w_, mask0, sigma, alpha0, resinv, resinv_d2, device, nblocks)
+        tgv_update_q!(q, w_, mask0, sigma, alpha0inv, resinv, resinv_d2, device, nblocks)
         KernelAbstractions.synchronize(device)
 
         #######################
@@ -92,7 +94,7 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=(0.003, 0.0
 
         ###############
         # primal update
-        tgv_update_phi!(phi, phi_, eta, mask, mask0, tau, resinv2, device, nblocks)
+        tgv_update_phi!(phi, phi_, eta, mask, mask0, tau, taup1inv, resinv2, device, nblocks)
         # KernelAbstractions.synchronize(device)
         tgv_update_chi!(chi, chi_, eta, p, mask0, tau, resinv, wresinv2, device, nblocks)
         # KernelAbstractions.synchronize(device)

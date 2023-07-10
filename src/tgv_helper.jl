@@ -21,14 +21,65 @@ function Δ(A, i, j, k, resinv2, mask=nothing)
     res = (-2A0 + A1m + A1p) * resinv2[1] +
           (-2A0 + A2m + A2p) * resinv2[2] +
           (-2A0 + A3m + A3p) * resinv2[3]
+
+          
+    if isnothing(mask)
+        D12mm = (i > 1) && (j > 1) ? A[i-1, j-1, k] : A0
+        D12mp = (i > 1) && (j < y) ? A[i-1, j+1, k] : A0
+        D12pm = (i < x) && (j > 1) ? A[i+1, j-1, k] : A0
+        D12pp = (i < x) && (j < y) ? A[i+1, j+1, k] : A0
+
+        D13mm = (i > 1) && (k > 1) ? A[i-1, j, k-1] : A0
+        D13mp = (i > 1) && (k < z) ? A[i-1, j, k+1] : A0
+        D13pm = (i < x) && (k > 1) ? A[i+1, j, k-1] : A0
+        D13pp = (i < x) && (k < z) ? A[i+1, j, k+1] : A0
+
+        D23mm = (j > 1) && (k > 1) ? A[i, j-1, k-1] : A0
+        D23mp = (j > 1) && (k < z) ? A[i, j-1, k+1] : A0
+        D23pm = (j < x) && (k > 1) ? A[i, j+1, k-1] : A0
+        D23pp = (j < x) && (k < z) ? A[i, j+1, k+1] : A0
+    else
+        D12mm = (i > 1) && (j > 1) ? mask[i-1, j-1, k] * A[i-1, j-1, k] : A0
+        D12mp = (i > 1) && (j < y) ? mask[i-1, j+1, k] * A[i-1, j+1, k] : A0
+        D12pm = (i < x) && (j > 1) ? mask[i+1, j-1, k] * A[i+1, j-1, k] : A0
+        D12pp = (i < x) && (j < y) ? mask[i+1, j+1, k] * A[i+1, j+1, k] : A0
+
+        D13mm = (i > 1) && (k > 1) ? mask[i-1, j, k-1] * A[i-1, j, k-1] : A0
+        D13mp = (i > 1) && (k < z) ? mask[i-1, j, k+1] * A[i-1, j, k+1] : A0
+        D13pm = (i < x) && (k > 1) ? mask[i+1, j, k-1] * A[i+1, j, k-1] : A0
+        D13pp = (i < x) && (k < z) ? mask[i+1, j, k+1] * A[i+1, j, k+1] : A0
+
+        D23mm = (j > 1) && (k > 1) ? mask[i, j-1, k-1] * A[i, j-1, k-1] : A0
+        D23mp = (j > 1) && (k < z) ? mask[i, j-1, k+1] * A[i, j-1, k+1] : A0
+        D23pm = (j < x) && (k > 1) ? mask[i, j+1, k-1] * A[i, j+1, k-1] : A0
+        D23pp = (j < x) && (k < z) ? mask[i, j+1, k+1] * A[i, j+1, k+1] : A0
+    end
+
+    # O’Reilly, Randall C., and Jeffrey M. Beck. "A family of large-stencil discrete Laplacian approximations in three-dimensions." Int. J. Numer. Methods Eng (2006): 1-16.
+
+    # Kernel split into 3 orthogonal sets
+    k1 = (-2A0 + D12mm + D12pp) + # new x
+         (-2A0 + D12mp + D12pm) + # new y
+         (-4A0 + 2A3m + 2A3p) # old z
+
+    k2 = (-2A0 + D13mm + D13pp) + # new x
+         (-4A0 + 2A2m + 2A2p) + # old y
+         (-2A0 + D13mp + D13pm) # new z
+
+    k3 = (-4A0 + 2A1m + 2A1p) + # old x
+         (-2A0 + D23mm + D23pp) + # new y
+         (-2A0 + D23mp + D23pm) # new z
+
+    res = (k1 + k2 + k3) / 6
+    
     return res
 end
 
-function □(A, i, j, k, resinv2, omega2, mask=nothing)
-    Δ(A, i, j, k, resinv2, mask) / 3 - D(A, i, j, k, resinv2, omega2, mask)
+function □(A, i, j, k, resinv2, omega, mask=nothing)
+    Δ(A, i, j, k, resinv2, mask) / 3 - D(A, i, j, k, resinv2, omega, mask)
 end
 
-function D(A, i, j, k, resinv2, omega2, mask=nothing)
+function D(A, i, j, k, resinv2, omega, mask=nothing)
     x, y, z = size(A)
 
     A0 = A[i, j, k]
@@ -48,9 +99,61 @@ function D(A, i, j, k, resinv2, omega2, mask=nothing)
         A3p = (k < z) ? mask[i, j, k+1] * A[i, j, k+1] : A0
     end
 
-    res = (-2A0 + A1m + A1p) * resinv2[1] * omega2[1] +
-          (-2A0 + A2m + A2p) * resinv2[2] * omega2[2] +
-          (-2A0 + A3m + A3p) * resinv2[3] * omega2[3]
+    if isnothing(mask)
+        D12mm = (i > 1) && (j > 1) ? A[i-1, j-1, k] : A0
+        D12mp = (i > 1) && (j < y) ? A[i-1, j+1, k] : A0
+        D12pm = (i < x) && (j > 1) ? A[i+1, j-1, k] : A0
+        D12pp = (i < x) && (j < y) ? A[i+1, j+1, k] : A0
+
+        D13mm = (i > 1) && (k > 1) ? A[i-1, j, k-1] : A0
+        D13mp = (i > 1) && (k < z) ? A[i-1, j, k+1] : A0
+        D13pm = (i < x) && (k > 1) ? A[i+1, j, k-1] : A0
+        D13pp = (i < x) && (k < z) ? A[i+1, j, k+1] : A0
+
+        D23mm = (j > 1) && (k > 1) ? A[i, j-1, k-1] : A0
+        D23mp = (j > 1) && (k < z) ? A[i, j-1, k+1] : A0
+        D23pm = (j < x) && (k > 1) ? A[i, j+1, k-1] : A0
+        D23pp = (j < x) && (k < z) ? A[i, j+1, k+1] : A0
+    else
+        D12mm = (i > 1) && (j > 1) ? mask[i-1, j-1, k] * A[i-1, j-1, k] : A0
+        D12mp = (i > 1) && (j < y) ? mask[i-1, j+1, k] * A[i-1, j+1, k] : A0
+        D12pm = (i < x) && (j > 1) ? mask[i+1, j-1, k] * A[i+1, j-1, k] : A0
+        D12pp = (i < x) && (j < y) ? mask[i+1, j+1, k] * A[i+1, j+1, k] : A0
+
+        D13mm = (i > 1) && (k > 1) ? mask[i-1, j, k-1] * A[i-1, j, k-1] : A0
+        D13mp = (i > 1) && (k < z) ? mask[i-1, j, k+1] * A[i-1, j, k+1] : A0
+        D13pm = (i < x) && (k > 1) ? mask[i+1, j, k-1] * A[i+1, j, k-1] : A0
+        D13pp = (i < x) && (k < z) ? mask[i+1, j, k+1] * A[i+1, j, k+1] : A0
+
+        D23mm = (j > 1) && (k > 1) ? mask[i, j-1, k-1] * A[i, j-1, k-1] : A0
+        D23mp = (j > 1) && (k < z) ? mask[i, j-1, k+1] * A[i, j-1, k+1] : A0
+        D23pm = (j < x) && (k > 1) ? mask[i, j+1, k-1] * A[i, j+1, k-1] : A0
+        D23pp = (j < x) && (k < z) ? mask[i, j+1, k+1] * A[i, j+1, k+1] : A0
+    end
+
+    res = (-2A0 + A1m + A1p) * resinv2[1] * omega[1]^2 +
+          (-2A0 + A2m + A2p) * resinv2[2] * omega[2]^2 +
+          (-2A0 + A3m + A3p) * resinv2[3] * omega[3]^2
+
+    # O’Reilly, Randall C., and Jeffrey M. Beck. "A family of large-stencil discrete Laplacian approximations in three-dimensions." Int. J. Numer. Methods Eng (2006): 1-16.
+
+    # Kernel split into 3 orthogonal sets
+    o1 = ((omega[1] + omega[2]) / sqrt(2), (omega[1] - omega[2]) / sqrt(2), omega[3])
+    k1 = (-2A0 + D12mm + D12pp) * o1[1]^2 + # new x
+         (-2A0 + D12mp + D12pm) * o1[2]^2 + # new y
+         (-4A0 + 2A3m + 2A3p) * o1[3]^2 # old z
+
+    o2 = ((omega[1] + omega[3]) / sqrt(2), omega[2], (omega[1] - omega[3]) / sqrt(2))
+    k2 = (-2A0 + D13mm + D13pp) * o2[1]^2 + # new x
+         (-4A0 + 2A2m + 2A2p) * o2[2]^2 + # old y
+         (-2A0 + D13mp + D13pm) * o2[3]^2 # new z
+
+    o3 = (omega[1], (omega[2] + omega[3]) / sqrt(2), (omega[2] - omega[3]) / sqrt(2))
+    k3 = (-4A0 + 2A1m + 2A1p) * o3[1]^2 + # old x
+         (-2A0 + D23mm + D23pp) * o3[2]^2 + # new y
+         (-2A0 + D23mp + D23pm) * o3[3]^2 # new z
+
+    res = (k1 + k2 + k3) / 6
 
     return res
 end
@@ -58,17 +161,16 @@ end
 # Update eta <- eta + sigma*mask*(-laplace(phi) + wave(chi) - laplace_phi0). 
 function tgv_update_eta!(eta, phi, chi, laplace_phi0, mask, sigma, res, omega; cu=cu, device=CUDADevice())
     resinv2 = res .^ -2
-    omega2 = omega .^ 2
 
-    update_eta_kernel!(device, 64)(eta, phi, chi, laplace_phi0, mask, sigma, cu(resinv2), cu(omega2); ndrange=size(eta))
+    update_eta_kernel!(device, 64)(eta, phi, chi, laplace_phi0, mask, sigma, cu(resinv2), cu(omega); ndrange=size(eta))
 end
 
-@kernel function update_eta_kernel!(eta, phi, chi, laplace_phi0, mask, sigma, resinv2, omega2)
+@kernel function update_eta_kernel!(eta, phi, chi, laplace_phi0, mask, sigma, resinv2, omega)
     i, j, k = @index(Global, NTuple)
 
     if mask[i, j, k]
         laplace = Δ(phi, i, j, k, resinv2)
-        wave = □(chi, i, j, k, resinv2, omega2)
+        wave = □(chi, i, j, k, resinv2, omega)
         eta[i, j, k] += sigma * (-laplace + wave - laplace_phi0[i, j, k])
     end
 end
@@ -190,12 +292,11 @@ end
 function tgv_update_chi!(chi_dest, chi, v, p, mask0, tau, res, omega; cu=cu, device=CUDADevice(), nblocks=64)
     resinv = 1 ./ res
     resinv2 = res .^ -2
-    omega2 = omega .^ 2
 
-    update_chi_kernel!(device, nblocks)(chi_dest, chi, v, p, mask0, tau, cu(resinv), cu(resinv2), cu(omega2); ndrange=size(chi_dest))
+    update_chi_kernel!(device, nblocks)(chi_dest, chi, v, p, mask0, tau, cu(resinv), cu(resinv2), cu(omega); ndrange=size(chi_dest))
 end
 
-@kernel function update_chi_kernel!(chi_dest, chi, v, p, mask0, tau, resinv, resinv2, omega2)
+@kernel function update_chi_kernel!(chi_dest, chi, v, p, mask0, tau, resinv, resinv2, omega)
     i, j, k = @index(Global, NTuple)
     x, y, z = size(chi_dest)
 
@@ -211,7 +312,7 @@ end
     div = (k < z) ? div + m0 * p[i, j, k, 3] * resinv[3] : div
     div = (k > 1) ? div - mask0[i, j, k-1] * p[i, j, k-1, 3] * resinv[3] : div
 
-    wave = □(v, i, j, k, resinv2, omega2, mask0)
+    wave = □(v, i, j, k, resinv2, omega, mask0)
 
     chi_dest[i, j, k] = chi[i, j, k] + tau * (div - wave)
 end

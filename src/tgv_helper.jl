@@ -1,50 +1,81 @@
-# Update eta <- eta + sigma*mask*(-laplace(phi) + wave(chi) - laplace_phi0). 
-function tgv_update_eta!(eta, phi, chi, laplace_phi0, mask, sigma, res, omega; cu=cu, device=CUDADevice())
-    resinv = res .^ -2
-    wresinv = [1 / 3, 1 / 3, -2 / 3] .* resinv
+function Δ(A, i, j, k, resinv2, mask=nothing)
+    x, y, z = size(A)
 
-    update_eta_kernel!(device, 64)(eta, phi, chi, laplace_phi0, mask, sigma, cu(resinv), cu(wresinv); ndrange=size(eta))
+    A0 = A[i, j, k]
+    if isnothing(mask)
+        A1m = (i > 1) ? A[i-1, j, k] : A0
+        A1p = (i < x) ? A[i+1, j, k] : A0
+        A2m = (j > 1) ? A[i, j-1, k] : A0
+        A2p = (j < y) ? A[i, j+1, k] : A0
+        A3m = (k > 1) ? A[i, j, k-1] : A0
+        A3p = (k < z) ? A[i, j, k+1] : A0
+    else
+        A1m = (i > 1) ? mask[i-1, j, k] * A[i-1, j, k] : A0
+        A1p = (i < x) ? mask[i+1, j, k] * A[i+1, j, k] : A0
+        A2m = (j > 1) ? mask[i, j-1, k] * A[i, j-1, k] : A0
+        A2p = (j < y) ? mask[i, j+1, k] * A[i, j+1, k] : A0
+        A3m = (k > 1) ? mask[i, j, k-1] * A[i, j, k-1] : A0
+        A3p = (k < z) ? mask[i, j, k+1] * A[i, j, k+1] : A0
+    end
+
+    res = (-2A0 + A1m + A1p) * resinv2[1] +
+          (-2A0 + A2m + A2p) * resinv2[2] +
+          (-2A0 + A3m + A3p) * resinv2[3]
+    return res
 end
 
-@kernel function update_eta_kernel!(eta, phi, chi, laplace_phi0, mask, sigma, resinv, wresinv)
+function □(A, i, j, k, resinv2, mask=nothing)
+    Δ(A, i, j, k, resinv2, mask) / 3 - D(A, i, j, k, resinv2, mask)
+end
+
+function D(A, i, j, k, resinv2, mask=nothing)
+    x, y, z = size(A)
+
+    A0 = A[i, j, k]
+    if isnothing(mask)
+        A1m = (i > 1) ? A[i-1, j, k] : A0
+        A1p = (i < x) ? A[i+1, j, k] : A0
+        A2m = (j > 1) ? A[i, j-1, k] : A0
+        A2p = (j < y) ? A[i, j+1, k] : A0
+        A3m = (k > 1) ? A[i, j, k-1] : A0
+        A3p = (k < z) ? A[i, j, k+1] : A0
+    else
+        A1m = (i > 1) ? mask[i-1, j, k] * A[i-1, j, k] : A0
+        A1p = (i < x) ? mask[i+1, j, k] * A[i+1, j, k] : A0
+        A2m = (j > 1) ? mask[i, j-1, k] * A[i, j-1, k] : A0
+        A2p = (j < y) ? mask[i, j+1, k] * A[i, j+1, k] : A0
+        A3m = (k > 1) ? mask[i, j, k-1] * A[i, j, k-1] : A0
+        A3p = (k < z) ? mask[i, j, k+1] * A[i, j, k+1] : A0
+    end
+
+    res = (-2A0 + A3m + A3p) * resinv2[3]
+
+    return res
+end
+
+# Update eta <- eta + sigma*mask*(-laplace(phi) + wave(chi) - laplace_phi0). 
+function tgv_update_eta!(eta, phi, chi, laplace_phi0, mask, sigma, res, omega; cu=cu, device=CUDADevice())
+    resinv2 = res .^ -2
+
+    update_eta_kernel!(device, 64)(eta, phi, chi, laplace_phi0, mask, sigma, cu(resinv2), cu(omega); ndrange=size(eta))
+end
+
+@kernel function update_eta_kernel!(eta, phi, chi, laplace_phi0, mask, sigma, resinv2, omega)
     i, j, k = @index(Global, NTuple)
-    x, y, z = size(phi)
 
-    # compute -laplace(phi)
-    A0 = phi[i, j, k]
-    A1m = (i > 1) ? phi[i-1, j, k] : A0
-    A1p = (i < x) ? phi[i+1, j, k] : A0
-    A2m = (j > 1) ? phi[i, j-1, k] : A0
-    A2p = (j < y) ? phi[i, j+1, k] : A0
-    A3m = (k > 1) ? phi[i, j, k-1] : A0
-    A3p = (k < z) ? phi[i, j, k+1] : A0
-
-    laplace = (2A0 - A1m - A1p) * resinv[1] +
-              (2A0 - A2m - A2p) * resinv[2] +
-              (2A0 - A3m - A3p) * resinv[3]
-
-    # compute wave(chi)
-    chi0 = chi[i, j, k]
-    chi1m = (i > 1) ? chi[i-1, j, k] : chi0
-    chi1p = (i < x) ? chi[i+1, j, k] : chi0
-    chi2m = (j > 1) ? chi[i, j-1, k] : chi0
-    chi2p = (j < y) ? chi[i, j+1, k] : chi0
-    chi3m = (k > 1) ? chi[i, j, k-1] : chi0
-    chi3p = (k < z) ? chi[i, j, k+1] : chi0
-
-    wave = (-2chi0 + chi1m + chi1p) * wresinv[1] +
-           (-2chi0 + chi2m + chi2p) * wresinv[2] +
-           (-2chi0 + chi3m + chi3p) * wresinv[3]
-
-    eta[i, j, k] += sigma * mask[i, j, k] * (laplace + wave - laplace_phi0[i, j, k])
+    if mask[i, j, k]
+        laplace = Δ(phi, i, j, k, resinv2)
+        wave = □(chi, i, j, k, resinv2)
+        eta[i, j, k] += sigma * (-laplace + wave - laplace_phi0[i, j, k])
+    end
 end
 
 # Update p <- P_{||.||_\infty <= alpha}(p + sigma*(mask0*grad(phi_f) - mask*w). 
 function tgv_update_p!(p, chi, w, mask, mask0, sigma, alpha, res; cu=cu, device=CUDADevice(), nblocks=64)
     alphainv = 1 / alpha
-    resinv = cu(1 ./ res)
+    resinv = 1 ./ res
 
-    update_p_kernel!(device, nblocks)(p, chi, w, mask, mask0, sigma, alphainv, resinv; ndrange=size(chi))
+    update_p_kernel!(device, nblocks)(p, chi, w, mask, mask0, sigma, alphainv, cu(resinv); ndrange=size(chi))
 end
 
 @kernel function update_p_kernel!(p, chi, w, mask, mask0, sigma, alphainv, resinv)
@@ -76,21 +107,21 @@ end
 # Update q <- P_{||.||_\infty <= alpha}(q + sigma*weight*symgrad(u)). 
 function tgv_update_q!(q, u, weight, sigma, alpha, res; cu=cu, device=CUDADevice(), nblocks=64)
     alphainv = 1 / alpha
-    resinv = cu(1 ./ res)
-    resinv2 = cu(0.5 ./ res)
+    resinv = 1 ./ res
+    resinv_d2 = 0.5 ./ res
 
-    update_q_kernel!(device, nblocks)(q, u, weight, sigma, alphainv, resinv, resinv2; ndrange=size(weight))
+    update_q_kernel!(device, nblocks)(q, u, weight, sigma, alphainv, cu(resinv), cu(resinv_d2); ndrange=size(weight))
 end
 
-@kernel function update_q_kernel!(q, u, weight, sigma, alphainv, resinv, resinv2)
+@kernel function update_q_kernel!(q, u, weight, sigma, alphainv, resinv, resinv_d2)
     i, j, k = @index(Global, NTuple)
     x, y, z = size(q)
 
     # compute symgrad(u)
     if (i < x)
         wxx = resinv[1] * (u[i+1, j, k, 1] - u[i, j, k, 1])
-        wxy = resinv2[1] * (u[i+1, j, k, 2] - u[i, j, k, 2])
-        wxz = resinv2[1] * (u[i+1, j, k, 3] - u[i, j, k, 3])
+        wxy = resinv_d2[1] * (u[i+1, j, k, 2] - u[i, j, k, 2])
+        wxz = resinv_d2[1] * (u[i+1, j, k, 3] - u[i, j, k, 3])
     else
         wxx = 0
         wxy = 0
@@ -98,17 +129,17 @@ end
     end
 
     if (j < y)
-        wxy = wxy + resinv2[2] * (u[i, j+1, k, 1] - u[i, j, k, 1])
+        wxy = wxy + resinv_d2[2] * (u[i, j+1, k, 1] - u[i, j, k, 1])
         wyy = resinv[2] * (u[i, j+1, k, 2] - u[i, j, k, 2])
-        wyz = resinv2[2] * (u[i, j+1, k, 3] - u[i, j, k, 3])
+        wyz = resinv_d2[2] * (u[i, j+1, k, 3] - u[i, j, k, 3])
     else
         wyy = 0
         wyz = 0
     end
 
     if (k < z)
-        wxz = wxz + resinv2[3] * (u[i, j, k+1, 1] - u[i, j, k, 1])
-        wyz = wyz + resinv2[3] * (u[i, j, k+1, 2] - u[i, j, k, 2])
+        wxz = wxz + resinv_d2[3] * (u[i, j, k+1, 1] - u[i, j, k, 1])
+        wyz = wyz + resinv_d2[3] * (u[i, j, k+1, 2] - u[i, j, k, 2])
         wzz = resinv[3] * (u[i, j, k+1, 3] - u[i, j, k, 3])
     else
         wzz = 0
@@ -138,27 +169,15 @@ end
 # Update phi_dest <- (phi + tau*laplace(mask0*eta))/(1+mask*tau). 
 function tgv_update_phi!(phi_dest, phi, eta, mask, mask0, tau, res; cu=cu, device=CUDADevice(), nblocks=64)
     taup1inv = 1 / (tau + 1)
-    resinv = cu(res .^ -2)
+    resinv2 = res .^ -2
 
-    update_phi_kernel!(device, nblocks)(phi_dest, phi, eta, mask, mask0, tau, taup1inv, resinv; ndrange=size(phi_dest))
+    update_phi_kernel!(device, nblocks)(phi_dest, phi, eta, mask, mask0, tau, taup1inv, cu(resinv2); ndrange=size(phi_dest))
 end
 
-@kernel function update_phi_kernel!(phi_dest, phi, eta, mask, mask0, tau, taup1inv, resinv)
+@kernel function update_phi_kernel!(phi_dest, phi, eta, mask, mask0, tau, taup1inv, resinv2)
     i, j, k = @index(Global, NTuple)
-    x, y, z = size(phi_dest)
-
-    # compute laplace(mask*eta)
-    v0 = mask0[i, j, k] * eta[i, j, k]
-    v1m = (i > 1) ? mask0[i-1, j, k] * eta[i-1, j, k] : v0
-    v1p = (i < x) ? mask0[i+1, j, k] * eta[i+1, j, k] : v0
-    v2m = (j > 1) ? mask0[i, j-1, k] * eta[i, j-1, k] : v0
-    v2p = (j < y) ? mask0[i, j+1, k] * eta[i, j+1, k] : v0
-    v3m = (k > 1) ? mask0[i, j, k-1] * eta[i, j, k-1] : v0
-    v3p = (k < z) ? mask0[i, j, k+1] * eta[i, j, k+1] : v0
-
-    laplace = (-2 * v0 + v1m + v1p) * resinv[1] +
-              (-2 * v0 + v2m + v2p) * resinv[2] +
-              (-2 * v0 + v3m + v3p) * resinv[3]
+    
+    laplace = Δ(eta, i,j,k, resinv2, mask0)
 
     fac = mask[i, j, k] ? taup1inv : 1
     phi_dest[i, j, k] = (phi[i, j, k] + tau * laplace) * fac
@@ -166,10 +185,10 @@ end
 
 # Update chi_dest <- chi + tau*(div(p) - wave(mask*v)). 
 function tgv_update_chi!(chi_dest, chi, v, p, mask0, tau, res, omega; cu=cu, device=CUDADevice(), nblocks=64)
-    resinv = cu(1 ./ res)
-    wresinv = cu([1 / 3, 1 / 3, -2 / 3] ./ (res .^ 2))
+    resinv = 1 ./ res
+    wresinv = res .^ -2
 
-    update_chi_kernel!(device, nblocks)(chi_dest, chi, v, p, mask0, tau, resinv, wresinv; ndrange=size(chi_dest))
+    update_chi_kernel!(device, nblocks)(chi_dest, chi, v, p, mask0, tau, cu(resinv), cu(wresinv); ndrange=size(chi_dest))
 end
 
 @kernel function update_chi_kernel!(chi_dest, chi, v, p, mask0, tau, resinv, wresinv)
@@ -188,27 +207,16 @@ end
     div = (k < z) ? div + m0 * p[i, j, k, 3] * resinv[3] : div
     div = (k > 1) ? div - mask0[i, j, k-1] * p[i, j, k-1, 3] * resinv[3] : div
 
-    # compute wave(mask*v)
-    v0 = m0 * v[i, j, k]
-    v1m = (i > 1) ? mask0[i-1, j, k] * v[i-1, j, k] : v0
-    v1p = (i < x) ? mask0[i+1, j, k] * v[i+1, j, k] : v0
-    v2m = (j > 1) ? mask0[i, j-1, k] * v[i, j-1, k] : v0
-    v2p = (j < y) ? mask0[i, j+1, k] * v[i, j+1, k] : v0
-    v3m = (k > 1) ? mask0[i, j, k-1] * v[i, j, k-1] : v0
-    v3p = (k < z) ? mask0[i, j, k+1] * v[i, j, k+1] : v0
-
-    wave = (-2 * v0 + v1m + v1p) * wresinv[1] +
-           (-2 * v0 + v2m + v2p) * wresinv[2] +
-           (-2 * v0 + v3m + v3p) * wresinv[3]
+    wave = □(v, i, j, k, wresinv, mask0)
 
     chi_dest[i, j, k] = chi[i, j, k] + tau * (div - wave)
 end
 
 # Update w_dest <- w + tau*(mask*p + div(mask0*q)). 
 function tgv_update_w!(w_dest, w, p, q, mask, mask0, tau, res, resinv_dim4, qx, qy, qz; cu=cu, device=CUDADevice(), nblocks=64)
-    resinv = cu(1 ./ res)
+    resinv = 1 ./ res
 
-    update_w_kernel!(device, nblocks)(w_dest, w, p, q, mask, mask0, tau, resinv; ndrange=size(mask0))
+    update_w_kernel!(device, nblocks)(w_dest, w, p, q, mask, mask0, tau, cu(resinv); ndrange=size(mask0))
 end
 
 @kernel function update_w_kernel!(w_dest, w, p, q, mask, mask0, tau, resinv)

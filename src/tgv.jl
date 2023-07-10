@@ -1,90 +1,35 @@
-function qsm_full(phase, mask, res; kw...)
-    laplace_phi0 = laplacian(phase, res)
-    return qsm_tgv(laplace_phi0, mask, res; kw...)
-end
+qsm_full(phase, mask, res; kw...) = qsm_tgv(laplacian(phase, res), mask, res; kw...)
 
-function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=(0.003, 0.001), iterations=1000, erosions=3, type=Float32, gpu=false, nblocks=32)
-    device, cu = if gpu
-        println("Using the GPU")
-        CUDA.CUDAKernels.CUDABackend(), CUDA.cu
-    else
-        println("Using $(Threads.nthreads()) CPU cores")
-        CPU(), identity
-    end
+function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=[0.003, 0.001], iterations=1000, erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32)
+    device, cu = select_device(gpu)
+    laplace_phi0, res, alpha, fieldstrength, mask = adjust_types(type, laplace_phi0, res, alpha, fieldstrength, mask)
 
     for _ in 1:erosions
         mask = erode_mask(mask)
     end
 
-    res_chi = zeros(type, size(laplace_phi0))
-    # get smaller views for only the area inside the mask
-    cut_indices = mask_box_indices(mask)
-    laplace_phi0 = view(laplace_phi0, cut_indices...)
-    mask = view(mask, cut_indices...)
-    res_chi_view = view(res_chi, cut_indices...)
+    laplace_phi0, mask, box_indices, original_size = reduce_to_mask_box(laplace_phi0, mask)
 
-    laplace_phi0 = cu(copy(laplace_phi0))
+    res, alpha, laplace_phi0 = de_dimensionalize(res, alpha, laplace_phi0)
+    
+    mask0 = erode_mask(mask) # one additional erosion in mask0
 
-    mask0 = cu(erode_mask(mask))
-    mask = cu(mask)
-    # initialize primal variables
-    chi = cu(zeros(type, size(laplace_phi0)))
-    chi_ = cu(zeros(type, size(laplace_phi0)))
+    laplace_phi0 .-= mean(laplace_phi0[mask0]) # mean correction to avoid background artefact
 
-    w = cu(zeros(type, (3, size(laplace_phi0)...)))
-    w_ = cu(zeros(type, (3, size(laplace_phi0)...)))
+    alphainv, tau, taup1inv, sigma, resinv, resinv2, resinv_d2, wresinv2 = set_parameters(alpha, res, cu)
 
-    phi = cu(zeros(type, size(laplace_phi0)))
-    phi_ = cu(zeros(type, size(laplace_phi0)))
+    laplace_phi0, mask, mask0 = cu(laplace_phi0), cu(mask), cu(mask0) # send to device
 
-    # initialize dual variables
-    eta = cu(zeros(type, size(laplace_phi0)))
-    p = cu(zeros(type, (3, size(laplace_phi0)...)))
-    q = cu(zeros(type, (6, size(laplace_phi0)...)))
-
-    res = type.(abs.(res))
-
-    # de-dimensionalize
-    res_corr = prod(res)^(-1 / 3)
-    res .*= res_corr
-    alpha = collect(type.(alpha))
-    alpha[2] *= res_corr
-    alpha[1] *= res_corr .^ 2
-    laplace_phi0 ./= res_corr .^ 2
-    laplace_phi0 .-= mean(laplace_phi0[mask])
-
-    # estimate squared norm
-    grad_norm_sqr = 4 * (sum(res .^ -2))
-
-    norm_sqr = 2 * grad_norm_sqr^2 + 1
-
-    # set regularization parameters
-    alpha1inv = type(1 / alpha[2])
-    alpha0inv = type(1 / alpha[1])
-
-    # initialize resolution
-    tau = 1 / sqrt(norm_sqr)
-    taup1inv = 1 / (tau + 1)
-    sigma = (1 / norm_sqr) / tau # TODO they are always identical
-
-
-    resinv = cu(1 ./ res)
-    resinv2 = cu(res .^ -2)
-    resinv_d2 = cu(0.5 ./ res)
-    wresinv2 = cu([1 / 3, 1 / 3, -2 / 3] ./ (res .^ 2))
-
-    KernelAbstractions.synchronize(device)
+    chi, chi_, w, w_, phi, phi_, eta, p, q = initialize_device_variables(type, size(laplace_phi0), cu)
 
     @showprogress 1 "Running $iterations TGV iterations..." for k in 1:iterations
 
         #############
         # dual update
-        tgv_update_eta!(eta, phi_, chi_, laplace_phi0, mask0, sigma, resinv2, wresinv2, device, nblocks)
-        # KernelAbstractions.synchronize(device)
-        tgv_update_p!(p, chi_, w_, mask, mask0, sigma, alpha1inv, resinv, device, nblocks)
-        # KernelAbstractions.synchronize(device)
-        tgv_update_q!(q, w_, mask0, sigma, alpha0inv, resinv, resinv_d2, device, nblocks)
         KernelAbstractions.synchronize(device)
+        tgv_update_eta!(eta, phi_, chi_, laplace_phi0, mask0, sigma, resinv2, wresinv2, device, nblocks)
+        tgv_update_p!(p, chi_, w_, mask, mask0, sigma, alphainv[2], resinv, device, nblocks)
+        tgv_update_q!(q, w_, mask0, sigma, alphainv[1], resinv, resinv_d2, device, nblocks)
 
         #######################
         # swap primal variables
@@ -94,47 +39,112 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=(0.003, 0.0
 
         ###############
         # primal update
-        tgv_update_phi!(phi, phi_, eta, mask, mask0, tau, taup1inv, resinv2, device, nblocks)
-        # KernelAbstractions.synchronize(device)
-        tgv_update_chi!(chi, chi_, eta, p, mask0, tau, resinv, wresinv2, device, nblocks)
-        # KernelAbstractions.synchronize(device)
-        tgv_update_w!(w, w_, p, q, mask, mask0, tau, resinv, device, nblocks)
         KernelAbstractions.synchronize(device)
+        tgv_update_phi!(phi, phi_, eta, mask, mask0, tau, taup1inv, resinv2, device, nblocks)
+        tgv_update_chi!(chi, chi_, eta, p, mask0, tau, resinv, wresinv2, device, nblocks)
+        tgv_update_w!(w, w_, p, q, mask, mask0, tau, resinv, device, nblocks)
         ######################
         # extragradient update
 
+        KernelAbstractions.synchronize(device)
         extragradient_update!(phi_, phi)
         extragradient_update!(chi_, chi)
         extragradient_update!(w_, w)
-        KernelAbstractions.synchronize(device)
     end
 
-    res_chi_view .= Array(chi) ./ scale(TE, fieldstrength)
-
+    res_chi = zeros(type, original_size)
+    view(res_chi, box_indices...) .= scale(Array(chi), TE, fieldstrength)
     return res_chi
 end
 
-function laplacian(phase, res)
-    sz = size(phase)
-    padded_indices = (0:sz[1]+1, 0:sz[2]+1, 0:sz[3]+1)
-    phase_pad = PaddedView(0, phase, padded_indices)
+function initialize_device_variables(type, sz, cu)
+    # initialize primal variables
+    chi = cu(zeros(type, sz))
+    chi_ = cu(zeros(type, sz))
+    w = cu(zeros(type, (3, sz...)))
+    w_ = cu(zeros(type, (3, sz...)))
+    phi = cu(zeros(type, sz))
+    phi_ = cu(zeros(type, sz))
+    # initialize dual variables
+    eta = cu(zeros(type, sz))
+    p = cu(zeros(type, (3, sz...)))
+    q = cu(zeros(type, (6, sz...)))
 
-    laplace_phi = rem2pi.(-2.0 * phase_pad[1:end-1, 1:end-1, 1:end-1] +
-                          (phase_pad[0:end-2, 1:end-1, 1:end-1]) +
-                          (phase_pad[2:end, 1:end-1, 1:end-1]), RoundNearest) / (res[1]^2)
+    return chi, chi_, w, w_, phi, phi_, eta, p, q
+end
 
-    laplace_phi += rem2pi.(-2.0 * phase_pad[1:end-1, 1:end-1, 1:end-1] +
-                           (phase_pad[1:end-1, 0:end-2, 1:end-1]) +
-                           (phase_pad[1:end-1, 2:end, 1:end-1]), RoundNearest) / (res[2]^2)
+function de_dimensionalize(res, alpha, laplace_phi0)
+    res_corr = prod(res)^(-1 / 3)
+    res = res .* res_corr
+    alpha = (alpha[1] * res_corr^2, alpha[2] * res_corr)
+    laplace_phi0 ./= res_corr^2
 
-    laplace_phi += rem2pi.(-2.0 * phase_pad[1:end-1, 1:end-1, 1:end-1] +
-                           (phase_pad[1:end-1, 1:end-1, 0:end-2]) +
-                           (phase_pad[1:end-1, 1:end-1, 2:end]), RoundNearest) / (res[3]^2)
-    return laplace_phi
+    return res, alpha, laplace_phi0
+end
+
+function set_parameters(alpha, res, cu)
+    alphainv = 1 ./ alpha
+
+    grad_norm_sqr = 4 * (sum(res .^ -2))
+    norm_sqr = 2 * grad_norm_sqr^2 + 1
+    tau = 1 / sqrt(norm_sqr)
+    taup1inv = 1 / (tau + 1)
+    sigma = (1 / norm_sqr) / tau # TODO always identical to tau
+
+    resinv = cu(1 ./ res)
+    resinv2 = cu(res .^ -2)
+    resinv_d2 = cu(0.5 ./ res)
+    wresinv2 = cu([1 / 3, 1 / 3, -2 / 3] ./ (res .^ 2)) # dipole kernel
+
+    return alphainv, tau, taup1inv, sigma, resinv, resinv2, resinv_d2, wresinv2
+end
+
+function adjust_types(type, laplace_phi_0, res, alpha, fieldstrength, mask)
+    type.(laplace_phi_0), type.(abs.(res)), type.(alpha), type(fieldstrength), mask .!= 0
+end
+
+function reduce_to_mask_box(laplace_phi0, mask)
+    original_size = size(laplace_phi0)
+    box_indices = mask_box_indices(mask)
+    laplace_phi0 = view(laplace_phi0, box_indices...)
+    mask = view(mask, box_indices...)
+
+    return laplace_phi0, mask, box_indices, original_size
+end
+
+function select_device(gpu)
+    if gpu
+        println("Using the GPU")
+        return CUDA.CUDAKernels.CUDABackend(), CUDA.cu
+    else
+        println("Using $(Threads.nthreads()) CPU cores")
+        return CPU(), identity
+    end
+end
+
+function erode_mask(mask)
+    SE = strel(CartesianIndex, strel_diamond(mask))
+    erode_vox(I) = minimum(mask[I+J] for J in SE if checkbounds(Bool, mask, I + J))
+    return [erode_vox(I) for I in eachindex(IndexCartesian(), mask)]
+end
+
+function scale(chi, TE, fieldstrength)
+    GAMMA = 42.5781
+    chi .*= 1 / (2pi * TE * fieldstrength * GAMMA)
+    return chi
+end
+
+# get indices for the smallest box that contains the mask
+function mask_box_indices(mask)
+    function get_range(mask, dims)
+        mask_projection = dropdims(reduce(max, mask; dims); dims)
+        return findfirst(mask_projection):findlast(mask_projection)
+    end
+    return [get_range(mask, dims) for dims in [(2, 3), (1, 3), (1, 2)]]
 end
 
 function get_laplace_phase3(phase, res)
-    #pad phase
+    # pad phase
     sz = size(phase)
     padded_indices = (0:sz[1]+1, 0:sz[2]+1, 0:sz[3]+1)
     phase = PaddedView(0, phase, padded_indices)
@@ -162,50 +172,20 @@ function get_laplace_phase3(phase, res)
     return laplace_phi
 end
 
-function get_best_local_h1(dx; axis=1)
-    F_shape = collect(size(dx))
+function get_best_local_h1(dx; axis)
+    F_shape = [size(dx)..., 3, 3]
+    len = F_shape[axis]
     F_shape[axis] -= 1
-    push!(F_shape, 3)
-    push!(F_shape, 3)
 
-    F = zeros(eltype(dx), Tuple(F_shape))
-    for i in -1:1
-        for j in -1:1
-            F[:, :, :, i+2, j+2] =
-                if axis == 1
-                    (dx[1:end-1, :, :] .- (2pi * i)) .^ 2 + (dx[2:end, :, :] .+ (2pi * j)) .^ 2
-                elseif axis == 2
-                    (dx[:, 1:end-1, :] .- (2pi * i)) .^ 2 + (dx[:, 2:end, :] .+ (2pi * j)) .^ 2
-                elseif axis == 3
-                    (dx[:, :, 1:end-1] .- (2pi * i)) .^ 2 + (dx[:, :, 2:end] .+ (2pi * j)) .^ 2
-                end
-        end
+    F = zeros(eltype(dx), F_shape...)
+    for i in -1:1, j in -1:1
+        F[:, :, :, i+2, j+2] = (selectdim(dx, axis, 1:len-1) .- (2pi * i)) .^ 2 .+ (selectdim(dx, axis, 2:len) .+ (2pi * j)) .^ 2
     end
 
-    G = argmin(F; dims=(4, 5))
-    G = dropdims(G; dims=(4, 5))
+    dims = (4, 5)
+    G = dropdims(argmin(F; dims); dims)
     I = getindex.(G, 4) .- 2
     J = getindex.(G, 5) .- 2
 
     return I, J
-end
-
-function erode_mask(mask)
-    SE = strel(CartesianIndex, strel_diamond(mask))
-    erode_vox(I) = minimum(mask[I+J] for J in SE if checkbounds(Bool, mask, I + J))
-    return [erode_vox(I) for I in eachindex(IndexCartesian(), mask)]
-end
-
-function scale(TE, fieldstrength)
-    GAMMA = 42.5781
-    return 2pi * TE * fieldstrength * GAMMA
-end
-
-# get indices for the smallest box that contains the mask
-function mask_box_indices(mask)
-    function get_range(mask, dims)
-        mask_projection = dropdims(reduce(max, mask; dims); dims)
-        return findfirst(mask_projection):findlast(mask_projection)
-    end
-    return [get_range(mask, dims) for dims in [(2, 3), (1, 3), (1, 2)]]
 end

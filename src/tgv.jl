@@ -22,14 +22,15 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=[0.003, 0.0
 
     chi, chi_, w, w_, phi, phi_, eta, p, q = initialize_device_variables(type, size(laplace_phi0), cu)
 
+    ndrange = size(laplace_phi0)
     @showprogress 1 "Running $iterations TGV iterations..." for k in 1:iterations
 
         #############
         # dual update
         KernelAbstractions.synchronize(device)
-        tgv_update_eta!(eta, phi_, chi_, laplace_phi0, mask0, sigma, resinv2, wresinv2, device, nblocks)
-        tgv_update_p!(p, chi_, w_, mask, mask0, sigma, alphainv[2], resinv, device, nblocks)
-        tgv_update_q!(q, w_, mask0, sigma, alphainv[1], resinv, resinv_d2, device, nblocks)
+        update_eta_kernel!(device, nblocks)(eta, phi_, chi_, laplace_phi0, mask0, sigma, resinv2, wresinv2; ndrange)
+        update_p_kernel!(device, nblocks)(p, chi_, w_, mask, mask0, sigma, alphainv[2], resinv; ndrange)
+        update_q_kernel!(device, nblocks)(q, w_, mask0, sigma, alphainv[1], resinv, resinv_d2; ndrange)
 
         #######################
         # swap primal variables
@@ -40,9 +41,9 @@ function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=[0.003, 0.0
         ###############
         # primal update
         KernelAbstractions.synchronize(device)
-        tgv_update_phi!(phi, phi_, eta, mask, mask0, tau, taup1inv, resinv2, device, nblocks)
-        tgv_update_chi!(chi, chi_, eta, p, mask0, tau, resinv, wresinv2, device, nblocks)
-        tgv_update_w!(w, w_, p, q, mask, mask0, tau, resinv, device, nblocks)
+        update_phi_kernel!(device, nblocks)(phi, phi_, eta, mask, mask0, tau, taup1inv, resinv2; ndrange)
+        update_chi_kernel!(device, nblocks)(chi, chi_, eta, p, mask0, tau, resinv, wresinv2; ndrange)
+        update_w_kernel!(device, nblocks)(w, w_, p, q, mask, mask0, tau, resinv; ndrange)
         ######################
         # extragradient update
 

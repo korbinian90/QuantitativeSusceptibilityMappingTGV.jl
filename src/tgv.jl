@@ -1,6 +1,5 @@
-qsm_full(phase, mask, res; kw...) = qsm_tgv(laplacian(phase, res), mask, res; kw...)
-
-function qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=[0.003, 0.001], iterations=1000, erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32)
+qsm_tgv(phase, mask, res; kw...) = qsm_tgv_laplacian(get_laplace_phase3(phase, res), mask, res; kw...)
+function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=[0.003, 0.001], iterations=1000, erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32)
     device, cu = select_device(gpu)
     laplace_phi0, res, alpha, fieldstrength, mask = adjust_types(type, laplace_phi0, res, alpha, fieldstrength, mask)
 

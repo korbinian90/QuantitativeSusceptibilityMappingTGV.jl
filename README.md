@@ -35,18 +35,19 @@ Note: The parallel CPU version is currently about 30% slower than the Cython ver
         res = [1, 1, 1] # in [mm]
         TE = 0.004 # in [s]
         fieldstrength = 3 # in [T]
-        laplace_phi0 = get_laplace_phase3(phase, res);
         
-        # Runs parallel on CPU
-        @time chi = qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength, iterations=10);
+        # Automatically runs on GPU, if a CUDA device is detected
+        @time chi = qsm_tgv(phase, mask, res; TE, fieldstrength);
 
         savenii(chi, "chi", "<folder-to-save>")
     ```
 
     ```julia
-        # Run on GPU
-        @time chi = qsm_tgv(laplace_phi0, mask, res; TE, fieldstrength, alpha=(0.0015, 0.0005), iterations=10, gpu=true);
+        # Run on CPU in parallel
+        @time chi = qsm_tgv(phase, mask, res; TE, fieldstrength, alpha=(0.0015, 0.0005), gpu=false);
     ```
+
+    It uses the number of threads julia was started with. You can use `julia --threads=auto` or set it to a specific number of threads.
 
 The first execution might take some time to compile the kernels (<1min).
 
@@ -61,7 +62,6 @@ The first execution might take some time to compile the kernels (<1min).
 
     phase = randn(sz)
     mask = trues(sz)
-    laplace_phi0 = get_laplace_phase3(phase, res)
 
-    chi = qsm_tgv(laplace_phi0, mask, res; TE, iterations=10)
+    chi = qsm_tgv(phase, mask, res; TE)
 ```

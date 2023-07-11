@@ -1,19 +1,21 @@
 @inline function stencil(((i, j, k), (x, y, z)), A, mask)
-    A0 = A[i, j, k]
-    if isnothing(mask)
-        A1m = (i > 1) ? A[i-1, j, k] : A0
-        A1p = (i < x) ? A[i+1, j, k] : A0
-        A2m = (j > 1) ? A[i, j-1, k] : A0
-        A2p = (j < y) ? A[i, j+1, k] : A0
-        A3m = (k > 1) ? A[i, j, k-1] : A0
-        A3p = (k < z) ? A[i, j, k+1] : A0
-    else
-        A1m = (i > 1) ? mask[i-1, j, k] * A[i-1, j, k] : A0
-        A1p = (i < x) ? mask[i+1, j, k] * A[i+1, j, k] : A0
-        A2m = (j > 1) ? mask[i, j-1, k] * A[i, j-1, k] : A0
-        A2p = (j < y) ? mask[i, j+1, k] * A[i, j+1, k] : A0
-        A3m = (k > 1) ? mask[i, j, k-1] * A[i, j, k-1] : A0
-        A3p = (k < z) ? mask[i, j, k+1] * A[i, j, k+1] : A0
+    @inbounds begin
+        A0 = A[i, j, k]
+        if isnothing(mask)
+            A1m = (i > 1) ? A[i-1, j, k] : A0
+            A1p = (i < x) ? A[i+1, j, k] : A0
+            A2m = (j > 1) ? A[i, j-1, k] : A0
+            A2p = (j < y) ? A[i, j+1, k] : A0
+            A3m = (k > 1) ? A[i, j, k-1] : A0
+            A3p = (k < z) ? A[i, j, k+1] : A0
+        else
+            A1m = (i > 1) ? mask[i-1, j, k] * A[i-1, j, k] : A0
+            A1p = (i < x) ? mask[i+1, j, k] * A[i+1, j, k] : A0
+            A2m = (j > 1) ? mask[i, j-1, k] * A[i, j-1, k] : A0
+            A2p = (j < y) ? mask[i, j+1, k] * A[i, j+1, k] : A0
+            A3m = (k > 1) ? mask[i, j, k-1] * A[i, j, k-1] : A0
+            A3p = (k < z) ? mask[i, j, k+1] * A[i, j, k+1] : A0
+        end
     end
     return A0, A1m, A1p, A2m, A2p, A3m, A3p
 end
@@ -35,6 +37,7 @@ end
 end
 
 @inline function div_local(((i, j, k), (x, y, z)), A::AbstractArray{T}, (r1, r2, r3), mask, (i1, i2, i3)=(1, 2, 3)) where {T}
+    @inbounds begin
     m0 = mask[i, j, k]
 
     div = (i < x) ? m0 * A[i1, i, j, k] * r1 : zero(T)
@@ -45,10 +48,12 @@ end
 
     div = (k < z) ? div + m0 * A[i3, i, j, k] * r3 : div
     div = (k > 1) ? div - mask[i, j, k-1] * A[i3, i, j, k-1] * r3 : div
+    end
     return div
 end
 
 function symgrad_local(((i, j, k), (x, y, z)), A::AbstractArray{T}, resinv, resinv_d2) where {T}
+    @inbounds begin
     if (i < x)
         wxx = resinv[1] * (A[1, i+1, j, k] - A[1, i, j, k])
         wxy = resinv_d2[1] * (A[2, i+1, j, k] - A[2, i, j, k])
@@ -75,6 +80,7 @@ function symgrad_local(((i, j, k), (x, y, z)), A::AbstractArray{T}, resinv, resi
     else
         wzz = zero(T)
     end
+end
     return wxx, wxy, wxz, wyy, wyz, wzz
 end
 
@@ -85,7 +91,7 @@ end
     laplace = laplace_local((I, R), phi, resinv2)
     wave = wave_local((I, R), chi, wresinv2)
 
-    eta[I...] += sigma * mask[I...] * (-laplace + wave - laplace_phi0[I...])
+    @inbounds eta[I...] += sigma * mask[I...] * (-laplace + wave - laplace_phi0[I...])
 end
 
 # Update p <- P_{||.||_\infty <= alpha}(p + sigma*(mask0*grad(phi_f) - mask*w). 
@@ -93,7 +99,7 @@ end
 @kernel function update_p_kernel!(p::AbstractArray{T}, chi, w, mask, mask0, sigma, alphainv, resinv) where {T}
     i, j, k = @index(Global, NTuple)
     x, y, z = @ndrange
-
+@inbounds begin
     chi0 = chi[i, j, k]
 
     dxp = (i < x) ? (chi[i+1, j, k] - chi0) * resinv[1] : zero(T)
@@ -114,13 +120,14 @@ end
         p[3, i, j, k] /= pabs
     end
 end
+end
 
 # Update q <- P_{||.||_\infty <= alpha}(q + sigma*weight*symgrad(u)).
 @inline qnorm((xx, xy, xz, yy, yz, zz)) = sqrt(xx * xx + yy * yy + zz * zz + 2 * (xy * xy + xz * xz + yz * yz))
 @kernel function update_q_kernel!(q, u, weight, sigma, alphainv, resinv, resinv_d2)
     I = @index(Global, NTuple)
     R = @ndrange
-
+    @inbounds begin
     sigmaw = sigma * weight[I...]
 
     wxx, wxy, wxz, wyy, wyz, wzz = symgrad_local((I, R), u, resinv, resinv_d2)
@@ -142,14 +149,17 @@ end
         q[6, I...] /= qabs
     end
 end
+end
 
 # Update phi_dest <- (phi + tau*laplace(mask0*eta))/(1+mask*tau). 
 @kernel function update_phi_kernel!(phi_dest, phi, eta, mask, mask0, tau, taup1inv, resinv2)
     I = @index(Global, NTuple)
     R = @ndrange
+    @inbounds begin
     laplace = laplace_local((I, R), eta, resinv2, mask0)
     fac = mask[I...] ? taup1inv : 1
     phi_dest[I...] = (phi[I...] + tau * laplace) * fac
+    end
 end
 
 # Update chi_dest <- chi + tau*(div(p) - wave(mask*v)). 
@@ -159,13 +169,14 @@ end
     div = div_local((I, R), p, resinv, mask0)
     wave = wave_local((I, R), v, wresinv2, mask0)
 
-    chi_dest[I...] = chi[I...] + tau * (div - wave)
+    @inbounds chi_dest[I...] = chi[I...] + tau * (div - wave)
 end
 
 # Update w_dest <- w + tau*(mask*p + div(mask0*q)). 
 @kernel function update_w_kernel!(w_dest::AbstractArray{T}, w, p, q, mask, mask0, tau, (r1, r2, r3)) where {T}
     I = @index(Global, NTuple)
     R = @ndrange
+    @inbounds begin
     w_dest[1, I...] = w[1, I...]
     w_dest[2, I...] = w[2, I...]
     w_dest[3, I...] = w[3, I...]
@@ -177,6 +188,7 @@ end
         w_dest[2, I...] += tau * (p[2, I...] + q245)
         w_dest[3, I...] += tau * (p[3, I...] + q356)
     end
+end
 end
 
 function extragradient_update!(u_, u)

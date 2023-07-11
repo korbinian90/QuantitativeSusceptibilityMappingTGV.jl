@@ -48,24 +48,56 @@ end
     return div
 end
 
+function symgrad_local(((i, j, k), (x, y, z)), A::AbstractArray{T}, resinv, resinv_d2) where {T}
+    if (i < x)
+        wxx = resinv[1] * (A[1, i+1, j, k] - A[1, i, j, k])
+        wxy = resinv_d2[1] * (A[2, i+1, j, k] - A[2, i, j, k])
+        wxz = resinv_d2[1] * (A[3, i+1, j, k] - A[3, i, j, k])
+    else
+        wxx = zero(T)
+        wxy = zero(T)
+        wxz = zero(T)
+    end
+
+    if (j < y)
+        wxy += resinv_d2[2] * (A[1, i, j+1, k] - A[1, i, j, k])
+        wyy = resinv[2] * (A[2, i, j+1, k] - A[2, i, j, k])
+        wyz = resinv_d2[2] * (A[3, i, j+1, k] - A[3, i, j, k])
+    else
+        wyy = zero(T)
+        wyz = zero(T)
+    end
+
+    if (k < z)
+        wxz += resinv_d2[3] * (A[1, i, j, k+1] - A[1, i, j, k])
+        wyz += resinv_d2[3] * (A[2, i, j, k+1] - A[2, i, j, k])
+        wzz = resinv[3] * (A[3, i, j, k+1] - A[3, i, j, k])
+    else
+        wzz = zero(T)
+    end
+    return wxx, wxy, wxz, wyy, wyz, wzz
+end
+
 # Update eta <- eta + sigma*mask*(-laplace(phi) + wave(chi) - laplace_phi0). 
 function tgv_update_eta!(eta, phi, chi, laplace_phi0, mask, sigma, resinv2, wresinv2, device, nblocks)
     update_eta_kernel!(device, nblocks)(eta, phi, chi, laplace_phi0, mask, sigma, resinv2, wresinv2; ndrange=size(eta))
 end
 
 @kernel function update_eta_kernel!(eta, phi, chi, laplace_phi0, mask, sigma, resinv2, wresinv2)
-    i, j, k = I = @index(Global, NTuple)
+    I = @index(Global, NTuple)
     R = @ndrange
     laplace = laplace_local((I, R), phi, resinv2)
     wave = wave_local((I, R), chi, wresinv2)
 
-    eta[i, j, k] += sigma * mask[i, j, k] * (-laplace + wave - laplace_phi0[i, j, k])
+    eta[I...] += sigma * mask[I...] * (-laplace + wave - laplace_phi0[I...])
 end
 
 # Update p <- P_{||.||_\infty <= alpha}(p + sigma*(mask0*grad(phi_f) - mask*w). 
 function tgv_update_p!(p, chi, w, mask, mask0, sigma, alphainv, resinv, device, nblocks)
     update_p_kernel!(device, nblocks)(p, chi, w, mask, mask0, sigma, alphainv, resinv; ndrange=size(chi))
 end
+
+@inline norm((x, y, z)) = sqrt(x * x + y * y + z * z)
 
 @kernel function update_p_kernel!(p::AbstractArray{T}, chi, w, mask, mask0, sigma, alphainv, resinv) where {T}
     i, j, k = @index(Global, NTuple)
@@ -80,73 +112,48 @@ end
     sigmaw0 = sigma * mask0[i, j, k]
     sigmaw = sigma * mask[i, j, k]
 
-    px = p[1, i, j, k] + sigmaw0 * dxp - sigmaw * w[1, i, j, k]
-    py = p[2, i, j, k] + sigmaw0 * dyp - sigmaw * w[2, i, j, k]
-    pz = p[3, i, j, k] + sigmaw0 * dzp - sigmaw * w[3, i, j, k]
-    pabs = sqrt(px * px + py * py + pz * pz) * alphainv
-    pabs = (pabs > 1) ? 1 / pabs : one(T)
+    p[1, i, j, k] += sigmaw0 * dxp - sigmaw * w[1, i, j, k]
+    p[2, i, j, k] += sigmaw0 * dyp - sigmaw * w[2, i, j, k]
+    p[3, i, j, k] += sigmaw0 * dzp - sigmaw * w[3, i, j, k]
 
-    p[1, i, j, k] = px * pabs
-    p[2, i, j, k] = py * pabs
-    p[3, i, j, k] = pz * pabs
+    pabs = norm((p[it, i, j, k] for it in 1:3)) * alphainv
+    if pabs > 1
+        p[1, i, j, k] /= pabs
+        p[2, i, j, k] /= pabs
+        p[3, i, j, k] /= pabs
+    end
 end
 
-# Update q <- P_{||.||_\infty <= alpha}(q + sigma*weight*symgrad(u)). 
+# Update q <- P_{||.||_\infty <= alpha}(q + sigma*weight*symgrad(u)).
 function tgv_update_q!(q, u, weight, sigma, alphainv, resinv, resinv_d2, device, nblocks)
     update_q_kernel!(device, nblocks)(q, u, weight, sigma, alphainv, resinv, resinv_d2; ndrange=size(weight))
 end
 
+@inline qnorm((xx, xy, xz, yy, yz, zz)) = sqrt(xx * xx + yy * yy + zz * zz + 2 * (xy * xy + xz * xz + yz * yz))
 @kernel function update_q_kernel!(q, u, weight, sigma, alphainv, resinv, resinv_d2)
-    i, j, k = @index(Global, NTuple)
-    x, y, z = @ndrange
+    I = @index(Global, NTuple)
+    R = @ndrange
 
-    # compute symgrad(u)
-    if (i < x)
-        wxx = resinv[1] * (u[i+1, j, k, 1] - u[i, j, k, 1])
-        wxy = resinv_d2[1] * (u[i+1, j, k, 2] - u[i, j, k, 2])
-        wxz = resinv_d2[1] * (u[i+1, j, k, 3] - u[i, j, k, 3])
-    else
-        wxx = 0
-        wxy = 0
-        wxz = 0
+    sigmaw = sigma * weight[I...]
+
+    wxx, wxy, wxz, wyy, wyz, wzz = symgrad_local((I, R), u, resinv, resinv_d2)
+
+    q[1, I...] += sigmaw * wxx
+    q[2, I...] += sigmaw * wxy
+    q[3, I...] += sigmaw * wxz
+    q[4, I...] += sigmaw * wyy
+    q[5, I...] += sigmaw * wyz
+    q[6, I...] += sigmaw * wzz
+
+    qabs = qnorm(q[i, I...] for i in 1:6) * alphainv
+    if qabs > 1
+        q[1, I...] /= qabs
+        q[2, I...] /= qabs
+        q[3, I...] /= qabs
+        q[4, I...] /= qabs
+        q[5, I...] /= qabs
+        q[6, I...] /= qabs
     end
-
-    if (j < y)
-        wxy = wxy + resinv_d2[2] * (u[i, j+1, k, 1] - u[i, j, k, 1])
-        wyy = resinv[2] * (u[i, j+1, k, 2] - u[i, j, k, 2])
-        wyz = resinv_d2[2] * (u[i, j+1, k, 3] - u[i, j, k, 3])
-    else
-        wyy = 0
-        wyz = 0
-    end
-
-    if (k < z)
-        wxz = wxz + resinv_d2[3] * (u[i, j, k+1, 1] - u[i, j, k, 1])
-        wyz = wyz + resinv_d2[3] * (u[i, j, k+1, 2] - u[i, j, k, 2])
-        wzz = resinv[3] * (u[i, j, k+1, 3] - u[i, j, k, 3])
-    else
-        wzz = 0
-    end
-
-    sigmaw = sigma * weight[i, j, k]
-
-    wxx = q[1, i, j, k] + sigmaw * wxx
-    wxy = q[2, i, j, k] + sigmaw * wxy
-    wxz = q[3, i, j, k] + sigmaw * wxz
-    wyy = q[4, i, j, k] + sigmaw * wyy
-    wyz = q[5, i, j, k] + sigmaw * wyz
-    wzz = q[6, i, j, k] + sigmaw * wzz
-
-    qabs = sqrt(wxx * wxx + wyy * wyy + wzz * wzz +
-                2 * (wxy * wxy + wxz * wxz + wyz * wyz)) * alphainv
-    qabs = (qabs > 1) ? 1 / qabs : 1
-
-    q[1, i, j, k] = wxx * qabs
-    q[2, i, j, k] = wxy * qabs
-    q[3, i, j, k] = wxz * qabs
-    q[4, i, j, k] = wyy * qabs
-    q[5, i, j, k] = wyz * qabs
-    q[6, i, j, k] = wzz * qabs
 end
 
 # Update phi_dest <- (phi + tau*laplace(mask0*eta))/(1+mask*tau). 
@@ -155,11 +162,11 @@ function tgv_update_phi!(phi_dest, phi, eta, mask, mask0, tau, taup1inv, resinv2
 end
 
 @kernel function update_phi_kernel!(phi_dest, phi, eta, mask, mask0, tau, taup1inv, resinv2)
-    i, j, k = I = @index(Global, NTuple)
+    I = @index(Global, NTuple)
     R = @ndrange
     laplace = laplace_local((I, R), eta, resinv2, mask0)
-    fac = mask[i, j, k] ? taup1inv : 1
-    phi_dest[i, j, k] = (phi[i, j, k] + tau * laplace) * fac
+    fac = mask[I...] ? taup1inv : 1
+    phi_dest[I...] = (phi[I...] + tau * laplace) * fac
 end
 
 # Update chi_dest <- chi + tau*(div(p) - wave(mask*v)). 
@@ -168,12 +175,12 @@ function tgv_update_chi!(chi_dest, chi, v, p, mask0, tau, resinv, wresinv2, devi
 end
 
 @kernel function update_chi_kernel!(chi_dest, chi, v, p, mask0, tau, resinv, wresinv2)
-    i, j, k = I = @index(Global, NTuple)
+    I = @index(Global, NTuple)
     R = @ndrange
     div = div_local((I, R), p, resinv, mask0)
     wave = wave_local((I, R), v, wresinv2, mask0)
 
-    chi_dest[i, j, k] = chi[i, j, k] + tau * (div - wave)
+    chi_dest[I...] = chi[I...] + tau * (div - wave)
 end
 
 # Update w_dest <- w + tau*(mask*p + div(mask0*q)). 

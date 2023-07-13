@@ -1,5 +1,5 @@
 qsm_tgv(phase, mask, res; kw...) = qsm_tgv_laplacian(get_laplace_phase3(phase, res), mask, res; kw...)
-function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=[0.003, 0.001], iterations=1000, erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32)
+function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=1000, erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32)
     device, cu = select_device(gpu)
     laplace_phi0, res, alpha, fieldstrength, mask = adjust_types(type, laplace_phi0, res, alpha, fieldstrength, mask)
 
@@ -15,7 +15,7 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=[
 
     laplace_phi0 .-= mean(laplace_phi0[mask0]) # mean correction to avoid background artefact
 
-    alphainv, tau, taup1inv, sigma, resinv, resinv2, resinv_d2, wresinv2 = set_parameters(alpha, res, cu)
+    alphainv, tau, taup1inv, sigma, resinv, laplace_kernel, dipole_kernel = set_parameters(alpha, res, omega, cu)
 
     laplace_phi0, mask, mask0 = cu(laplace_phi0), cu(mask), cu(mask0) # send to device
 
@@ -27,9 +27,9 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=[
         #############
         # dual update
         KernelAbstractions.synchronize(device)
-        update_eta_kernel!(device, nblocks)(eta, phi_, chi_, laplace_phi0, mask0, sigma, resinv2, wresinv2; ndrange)
+        update_eta_kernel!(device, nblocks)(eta, phi_, chi_, laplace_phi0, mask0, sigma, laplace_kernel, dipole_kernel; ndrange)
         update_p_kernel!(device, nblocks)(p, chi_, w_, mask, mask0, sigma, alphainv[2], resinv; ndrange)
-        update_q_kernel!(device, nblocks)(q, w_, mask0, sigma, alphainv[1], resinv, resinv_d2; ndrange)
+        update_q_kernel!(device, nblocks)(q, w_, mask0, sigma, alphainv[1], resinv; ndrange)
 
         #######################
         # swap primal variables
@@ -40,10 +40,10 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, fieldstrength=3, alpha=[
         ###############
         # primal update
         KernelAbstractions.synchronize(device)
-        update_phi_kernel!(device, nblocks)(phi, phi_, eta, mask, mask0, tau, taup1inv, resinv2; ndrange)
-        update_chi_kernel!(device, nblocks)(chi, chi_, eta, p, mask0, tau, resinv, wresinv2; ndrange)
+        update_phi_kernel!(device, nblocks)(phi, phi_, eta, mask, mask0, tau, laplace_kernel; ndrange)
+        update_chi_kernel!(device, nblocks)(chi, chi_, eta, p, mask0, tau, resinv, dipole_kernel; ndrange)
         update_w_kernel!(device, nblocks)(w, w_, p, q, mask, mask0, tau, resinv; ndrange)
-        ######################
+        #####################
         # extragradient update
 
         KernelAbstractions.synchronize(device)
@@ -82,7 +82,7 @@ function de_dimensionalize(res, alpha, laplace_phi0)
     return res, alpha, laplace_phi0
 end
 
-function set_parameters(alpha, res, cu)
+function set_parameters(alpha, res, omega, cu)
     alphainv = 1 ./ alpha
 
     grad_norm_sqr = 4 * (sum(res .^ -2))
@@ -90,13 +90,12 @@ function set_parameters(alpha, res, cu)
     tau = 1 / sqrt(norm_sqr)
     taup1inv = 1 / (tau + 1)
     sigma = (1 / norm_sqr) / tau # TODO always identical to tau
-
+    
     resinv = cu(1 ./ res)
-    resinv2 = cu(res .^ -2)
-    resinv_d2 = cu(0.5 ./ res)
-    wresinv2 = cu([1 / 3, 1 / 3, -2 / 3] ./ (res .^ 2)) # dipole kernel
+    laplace_kernel = cu(res .^ -2)
+    dipole_kernel = cu((1 / 3 .- omega .^ 2) ./ (res .^ 2))
 
-    return alphainv, tau, taup1inv, sigma, resinv, resinv2, resinv_d2, wresinv2
+    return alphainv, tau, taup1inv, sigma, resinv, laplace_kernel, dipole_kernel
 end
 
 function adjust_types(type, laplace_phi_0, res, alpha, fieldstrength, mask)

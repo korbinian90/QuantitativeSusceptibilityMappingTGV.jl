@@ -1,5 +1,5 @@
 qsm_tgv(phase, mask, res; kw...) = qsm_tgv_laplacian(get_laplace_phase3(phase, res), mask, res; kw...)
-function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=1000, erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32)
+function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=1000, erosions=3, dedimensionalize=true, type=Float32, gpu=CUDA.functional(), nblocks=32)
     device, cu = select_device(gpu)
     laplace_phi0, res, alpha, fieldstrength, mask = adjust_types(type, laplace_phi0, res, alpha, fieldstrength, mask)
 
@@ -9,7 +9,9 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldst
 
     laplace_phi0, mask, box_indices, original_size = reduce_to_mask_box(laplace_phi0, mask)
 
-    res, alpha, laplace_phi0 = de_dimensionalize(res, alpha, laplace_phi0)
+    if dedimensionalize
+        res, alpha, laplace_phi0 = de_dimensionalize(res, alpha, laplace_phi0)
+    end
     
     mask0 = erode_mask(mask) # one additional erosion in mask0
 
@@ -20,6 +22,7 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldst
     laplace_phi0, mask, mask0 = cu(laplace_phi0), cu(mask), cu(mask0) # send to device
 
     chi, chi_, w, w_, phi, phi_, eta, p, q = initialize_device_variables(type, size(laplace_phi0), cu)
+
 
     ndrange = size(laplace_phi0)
     @showprogress 1 "Running $iterations TGV iterations..." for k in 1:iterations
@@ -187,4 +190,17 @@ function get_best_local_h1(dx; axis)
     J = getindex.(G, 5) .- 2
 
     return I, J
+end
+
+function get_laplace_phase_conv(phase, res=[1,1,1])
+    real = cos.(phase)
+    imag = sin.(phase)
+
+    k = Kernel.Laplacian((true,true,true))
+    del_real = imfilter(real, k)
+    del_imag = imfilter(imag, k)
+
+    laplacian_phase = del_imag .* real - del_real .* imag
+
+    return laplacian_phase
 end

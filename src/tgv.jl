@@ -17,7 +17,7 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldst
 
     laplace_phi0 .-= mean(laplace_phi0[mask0]) # mean correction to avoid background artefact
 
-    alphainv, tau, taup1inv, sigma, resinv, laplace_kernel, dipole_kernel = set_parameters(alpha, res, omega, cu)
+    alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel = set_parameters(alpha, res, omega, cu)
 
     laplace_phi0, mask, mask0 = cu(laplace_phi0), cu(mask), cu(mask0) # send to device
 
@@ -91,14 +91,13 @@ function set_parameters(alpha, res, omega, cu)
     grad_norm_sqr = 4 * (sum(res .^ -2))
     norm_sqr = 2 * grad_norm_sqr^2 + 1
     tau = 1 / sqrt(norm_sqr)
-    taup1inv = 1 / (tau + 1)
     sigma = (1 / norm_sqr) / tau # TODO always identical to tau
     
     resinv = cu(1 ./ res)
     laplace_kernel = cu(res .^ -2)
     dipole_kernel = cu((1 / 3 .- omega .^ 2) ./ (res .^ 2))
 
-    return alphainv, tau, taup1inv, sigma, resinv, laplace_kernel, dipole_kernel
+    return alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel
 end
 
 function adjust_types(type, laplace_phi_0, res, alpha, fieldstrength, mask)

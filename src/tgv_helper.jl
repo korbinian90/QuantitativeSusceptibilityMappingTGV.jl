@@ -44,13 +44,14 @@ end
     return div
 end
 
-function symgrad_local((I, (x, y, z)), A::AbstractArray{T}, resinv) where {T}
+function symgrad_local((I, (x, y, z)), A::AbstractArray{T}, (r1, r2, r3)) where {T}
     i, j, k = Tuple(I)
+    A1, A2, A3 = A[1, I], A[2, I], A[3, I]
     @inbounds begin
         if (i < x)
-            wxx = resinv[1] * (A[1, i+1, j, k] - A[1, i, j, k])
-            wxy = resinv[1] / 2 * (A[2, i+1, j, k] - A[2, i, j, k])
-            wxz = resinv[1] / 2 * (A[3, i+1, j, k] - A[3, i, j, k])
+            wxx = (A[1, i+1, j, k] - A1) * r1
+            wxy = (A[2, i+1, j, k] - A2) * r1 / 2
+            wxz = (A[3, i+1, j, k] - A3) * r1 / 2
         else
             wxx = zero(T)
             wxy = zero(T)
@@ -58,18 +59,18 @@ function symgrad_local((I, (x, y, z)), A::AbstractArray{T}, resinv) where {T}
         end
 
         if (j < y)
-            wxy += resinv[2] / 2 * (A[1, i, j+1, k] - A[1, i, j, k])
-            wyy = resinv[2] * (A[2, i, j+1, k] - A[2, i, j, k])
-            wyz = resinv[2] / 2 * (A[3, i, j+1, k] - A[3, i, j, k])
+            wxy += (A[1, i, j+1, k] - A1) * r2 / 2
+            wyy = (A[2, i, j+1, k] - A2) * r2
+            wyz = (A[3, i, j+1, k] - A3) * r2 / 2
         else
             wyy = zero(T)
             wyz = zero(T)
         end
 
         if (k < z)
-            wxz += resinv[3] / 2 * (A[1, i, j, k+1] - A[1, i, j, k])
-            wyz += resinv[3] / 2 * (A[2, i, j, k+1] - A[2, i, j, k])
-            wzz = resinv[3] * (A[3, i, j, k+1] - A[3, i, j, k])
+            wxz += (A[1, i, j, k+1] - A1) * r3 / 2
+            wyz += (A[2, i, j, k+1] - A2) * r3 / 2
+            wzz = (A[3, i, j, k+1] - A3) * r3
         else
             wzz = zero(T)
         end
@@ -89,7 +90,7 @@ end
 end
 
 @inline function grad_local((I, (x, y, z)), A::AbstractArray{T}, resinv) where {T}
-    i,j,k = Tuple(I)
+    i, j, k = Tuple(I)
     A0 = A[i, j, k]
     dx = (i < x) ? (A[i+1, j, k] - A0) * resinv[1] : zero(T)
     dy = (j < y) ? (A[i, j+1, k] - A0) * resinv[2] : zero(T)

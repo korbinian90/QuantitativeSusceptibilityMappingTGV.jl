@@ -88,6 +88,7 @@ end
 end
 
 @inline function grad_local((I, (x, y, z)), A::AbstractArray{T}, resinv) where {T}
+    i,j,k = Tuple(I)
     A0 = A[i, j, k]
     dx = (i < x) ? (A[i+1, j, k] - A0) * resinv[1] : zero(T)
     dy = (j < y) ? (A[i, j+1, k] - A0) * resinv[2] : zero(T)

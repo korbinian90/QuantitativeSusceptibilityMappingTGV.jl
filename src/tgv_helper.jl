@@ -20,7 +20,6 @@
     return A0, A1m, A1p, A2m, A2p, A3m, A3p
 end
 
-# TODO try to rotate all stencils with omega
 @inline function filter_local(I, A, w, mask=nothing)
     A0, A1m, A1p, A2m, A2p, A3m, A3p = stencil(I, A, mask)
 
@@ -44,34 +43,48 @@ end
 end
 
 function symgrad_local(((i, j, k), (x, y, z)), A::AbstractArray{T}, resinv) where {T}
-    @inbounds begin
-        if (i < x)
-            wxx = resinv[1] * (A[1, i+1, j, k] - A[1, i, j, k])
-            wxy = resinv[1] / 2 * (A[2, i+1, j, k] - A[2, i, j, k])
-            wxz = resinv[1] / 2 * (A[3, i+1, j, k] - A[3, i, j, k])
-        else
-            wxx = zero(T)
-            wxy = zero(T)
-            wxz = zero(T)
-        end
+    A1, A2, A3 = A[1, i, j, k], A[2, i, j, k], A[3, i, j, k]
+    # @inbounds begin
+    #     if (i < x)
+    #         wxx = (A[1, i+1, j, k] - A1) * resinv[1]
+    #         wxy = (A[2, i+1, j, k] - A2) * (resinv[1] / 2)
+    #         wxz = (A[3, i+1, j, k] - A3) * (resinv[1] / 2)
+    #     else
+    #         wxx = zero(T)
+    #         wxy = zero(T)
+    #         wxz = zero(T)
+    #     end
 
-        if (j < y)
-            wxy += resinv[2] / 2 * (A[1, i, j+1, k] - A[1, i, j, k])
-            wyy = resinv[2] * (A[2, i, j+1, k] - A[2, i, j, k])
-            wyz = resinv[2] / 2 * (A[3, i, j+1, k] - A[3, i, j, k])
-        else
-            wyy = zero(T)
-            wyz = zero(T)
-        end
+    #     if (j < y)
+    #         wxy += (A[1, i, j+1, k] - A1) * (resinv[2] / 2)
+    #         wyy = (A[2, i, j+1, k] - A2) * resinv[2]
+    #         wyz = (A[3, i, j+1, k] - A3) * (resinv[2] / 2)
+    #     else
+    #         wyy = zero(T)
+    #         wyz = zero(T)
+    #     end
 
-        if (k < z)
-            wxz += resinv[3] / 2 * (A[1, i, j, k+1] - A[1, i, j, k])
-            wyz += resinv[3] / 2 * (A[2, i, j, k+1] - A[2, i, j, k])
-            wzz = resinv[3] * (A[3, i, j, k+1] - A[3, i, j, k])
-        else
-            wzz = zero(T)
-        end
-    end
+    #     if (k < z)
+    #         wxz += (A[1, i, j, k+1] - A1) * (resinv[3] / 2)
+    #         wyz += (A[2, i, j, k+1] - A2) * (resinv[3] / 2)
+    #         wzz = (A[3, i, j, k+1] - A3) * resinv[3]
+    #     else
+    #         wzz = zero(T)
+    #     end
+    # end
+
+    wxx = (i < x) ? (A[1, i+1, j, k] - A1) * resinv[1] : zero(T)
+    wxy = (i < x) ? (A[2, i+1, j, k] - A2) * (resinv[1] / 2) : zero(T)
+    wxz = (i < x) ? (A[3, i+1, j, k] - A3) * (resinv[1] / 2) : zero(T)
+
+    wxy = (j < y) ? wxy + (A[1, i, j+1, k] - A1) * (resinv[2] / 2) : zero(T)
+    wyy = (j < y) ? (A[2, i, j+1, k] - A2) * resinv[2] : zero(T)
+    wyz = (j < y) ? (A[3, i, j+1, k] - A3) * (resinv[2] / 2) : zero(T)
+
+    wxz = (k < z) ? wxz + (A[1, i, j, k+1] - A1) * (resinv[3] / 2) : zero(T)
+    wyz = (k < z) ? wyz + (A[2, i, j, k+1] - A2) * (resinv[3] / 2) : zero(T)
+    wzz = (k < z) ? (A[3, i, j, k+1] - A3) * resinv[3] : zero(T)
+
     return wxx, wxy, wxz, wyy, wyz, wzz
 end
 
@@ -89,7 +102,7 @@ end
 @inline norm((x, y, z)) = sqrt(x * x + y * y + z * z)
 @kernel function update_p_kernel!(p::AbstractArray{T}, chi, w, mask, mask0, sigma, alphainv, resinv) where {T}
     I = @index(Global, Cartesian)
-    i,j,k = Tuple(I)
+    i, j, k = Tuple(I)
     x, y, z = @ndrange
     @inbounds begin
         chi0 = chi[I]
@@ -124,6 +137,7 @@ end
 
         wxx, wxy, wxz, wyy, wyz, wzz = symgrad_local((Tuple(I), R), u, resinv)
 
+        # Try @.
         q[1, I] += sigmaw * wxx
         q[2, I] += sigmaw * wxy
         q[3, I] += sigmaw * wxz
@@ -166,17 +180,17 @@ end
     I = @index(Global, Cartesian)
     R = @ndrange
     # @inbounds begin
-        w_dest[1, I] = w[1, I]
-        w_dest[2, I] = w[2, I]
-        w_dest[3, I] = w[3, I]
-        if mask[I]
-            q123 = div_local((Tuple(I), R), q, (r1, r1, r1), mask0, (1, 2, 3))
-            q245 = div_local((Tuple(I), R), q, (r2, r2, r2), mask0, (2, 4, 5))
-            q356 = div_local((Tuple(I), R), q, (r3, r3, r3), mask0, (3, 5, 6))
-            w_dest[1, I] += tau * (p[1, I] + q123)
-            w_dest[2, I] += tau * (p[2, I] + q245)
-            w_dest[3, I] += tau * (p[3, I] + q356)
-        end
+    w_dest[1, I] = w[1, I]
+    w_dest[2, I] = w[2, I]
+    w_dest[3, I] = w[3, I]
+    if mask[I]
+        q123 = div_local((Tuple(I), R), q, (r1, r1, r1), mask0, (1, 2, 3))
+        q245 = div_local((Tuple(I), R), q, (r2, r2, r2), mask0, (2, 4, 5))
+        q356 = div_local((Tuple(I), R), q, (r3, r3, r3), mask0, (3, 5, 6))
+        w_dest[1, I] += tau * (p[1, I] + q123)
+        w_dest[2, I] += tau * (p[2, I] + q245)
+        w_dest[3, I] += tau * (p[3, I] + q356)
+    end
     # end
 end
 

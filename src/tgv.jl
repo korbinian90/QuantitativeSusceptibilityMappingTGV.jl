@@ -3,17 +3,22 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldst
     device, cu = select_device(gpu)
     laplace_phi0, res, alpha, fieldstrength, mask = adjust_types(type, laplace_phi0, res, alpha, fieldstrength, mask)
 
-    for _ in 1:erosions
-        mask = erode_mask(mask)
-    end
+    # for _ in 1:erosions
+    #     mask = erode_mask(mask)
+    # end
 
     laplace_phi0, mask, box_indices, original_size = reduce_to_mask_box(laplace_phi0, mask)
 
     if dedimensionalize
         res, alpha, laplace_phi0 = de_dimensionalize(res, alpha, laplace_phi0)
     end
-    
-    mask0 = erode_mask(mask) # one additional erosion in mask0
+
+    # mask0 = erode_mask(mask) # one additional erosion in mask0
+
+    mask0 = copy(mask)
+    for _ in 1:5
+        mask0 = erode_mask(mask0)
+    end
 
     laplace_phi0 .-= mean(laplace_phi0[mask0]) # mean correction to avoid background artefact
 
@@ -36,9 +41,12 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldst
 
         #######################
         # swap primal variables
-        (phi_, phi) = (phi, phi_)
-        (chi_, chi) = (chi, chi_)
-        (w_, w) = (w, w_)
+        # (phi_, phi) = (phi, phi_)
+        # (chi_, chi) = (chi, chi_)
+        # (w_, w) = (w, w_)
+        phi_ = phi
+        chi_ = chi
+        w_ = w
 
         ###############
         # primal update
@@ -191,15 +199,24 @@ function get_best_local_h1(dx; axis)
     return I, J
 end
 
-function get_laplace_phase_conv(phase, res=[1,1,1])
+function get_laplace_phase_conv(phase, res=[1, 1, 1])
     real = cos.(phase)
     imag = sin.(phase)
 
-    k = Kernel.Laplacian((true,true,true))
+    k = laplacian_kernel(res)
     del_real = imfilter(real, k)
     del_imag = imfilter(imag, k)
 
     laplacian_phase = del_imag .* real - del_real .* imag
 
     return laplacian_phase
+end
+
+function laplacian_kernel(res)
+    f = 1 ./ res .^ 2
+    f_sum = -2 * sum(f)
+    k = [0 0 0; 0 f[3] 0; 0 0 0;;;
+        0 f[1] 0; f[2] f_sum f[2]; 0 f[1] 0;;;
+        0 0 0; 0 f[3] 0; 0 0 0]
+    return centered(k)
 end

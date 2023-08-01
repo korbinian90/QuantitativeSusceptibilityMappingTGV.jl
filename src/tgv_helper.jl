@@ -79,7 +79,8 @@ end
 
 # Update eta <- eta + sigma*mask*(-laplace(phi) + wave(chi) - laplace_phi0). 
 @kernel function update_eta_kernel!(eta, phi, chi, laplace_phi0, mask, sigma, laplace_kernel, dipole_kernel)
-    I, R = @index(Global, Cartesian), @ndrange
+    I = @index(Global, Cartesian)
+    R = @ndrange
 
     laplace = filter_local((I, R), phi, laplace_kernel)
     wave = filter_local((I, R), chi, dipole_kernel)
@@ -99,7 +100,8 @@ end
 # Update p <- P_{||.||_\infty <= alpha}(p + sigma*(mask0*grad(phi_f) - mask*w). 
 @inline norm((x, y, z)) = sqrt(x * x + y * y + z * z)
 @kernel function update_p_kernel!(p, chi, w, mask, mask0, sigma, alphainv, resinv)
-    I, R = @index(Global, Cartesian), @ndrange
+    I = @index(Global, Cartesian)
+    R = @ndrange
 
     dxp, dyp, dzp = grad_local((I, R), chi, resinv)
 
@@ -123,7 +125,8 @@ end
 # Update q <- P_{||.||_\infty <= alpha}(q + sigma*weight*symgrad(u)).
 @inline qnorm((xx, xy, xz, yy, yz, zz)) = sqrt(xx * xx + yy * yy + zz * zz + 2 * (xy * xy + xz * xz + yz * yz))
 @kernel function update_q_kernel!(q, u, weight, sigma, alphainv, resinv)
-    I, R = @index(Global, Cartesian), @ndrange
+    I = @index(Global, Cartesian)
+    R = @ndrange
 
     wxx, wxy, wxz, wyy, wyz, wzz = symgrad_local((I, R), u, resinv)
 
@@ -151,7 +154,8 @@ end
 
 # Update phi_dest <- (phi + tau*laplace(mask0*eta))/(1+mask*tau). 
 @kernel function update_phi_kernel!(phi_dest::AbstractArray{T}, phi, eta, mask, mask0, tau, laplace_kernel) where {T}
-    I, R = @index(Global, Cartesian), @ndrange
+    I = @index(Global, Cartesian)
+    R = @ndrange
 
     laplace = filter_local((I, R), eta, laplace_kernel, mask0)
     @inbounds phi_dest[I] = (phi[I] + tau * laplace) / (one(T) + mask[I] * tau)
@@ -159,7 +163,8 @@ end
 
 # Update chi_dest <- chi + tau*(div(p) - wave(mask*v)). 
 @kernel function update_chi_kernel!(chi_dest, chi, v, p, mask0, tau, resinv, dipole_kernel)
-    I, R = @index(Global, Cartesian), @ndrange
+    I = @index(Global, Cartesian)
+    R = @ndrange
 
     div = div_local((I, R), p, resinv, mask0)
     wave = filter_local((I, R), v, dipole_kernel, mask0)
@@ -169,7 +174,8 @@ end
 
 # Update w_dest <- w + tau*(mask*p + div(mask0*q)). 
 @kernel function update_w_kernel!(w_dest, w, p, q, mask, mask0, tau, (r1, r2, r3))
-    I, R = @index(Global, Cartesian), @ndrange
+    I = @index(Global, Cartesian)
+    R = @ndrange
 
     @inbounds begin
         w_dest[1, I] = w[1, I]

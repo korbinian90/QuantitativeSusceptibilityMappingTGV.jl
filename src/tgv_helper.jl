@@ -31,13 +31,13 @@ end
 
 @inline function div_local(((i, j, k), (x, y, z)), A::AbstractArray{T}, (r1, r2, r3), mask, (i1, i2, i3)=(1, 2, 3)) where {T}
     @inbounds begin
-        div = (i < x) ? mask[i, j, k] * A[i1, i, j, k] * r1 : zero(T)
+        div = mask[i, j, k] * A[i1, i, j, k] * r1
         div -= (i > 1) ? mask[i-1, j, k] * A[i1, i-1, j, k] * r1 : zero(T)
 
-        div += (j < y) ? mask[i, j, k] * A[i2, i, j, k] * r2 : zero(T)
+        div += mask[i, j, k] * A[i2, i, j, k] * r2
         div -= (j > 1) ? mask[i, j-1, k] * A[i2, i, j-1, k] * r2 : zero(T)
 
-        div += (k < z) ? mask[i, j, k] * A[i3, i, j, k] * r3 : zero(T)
+        div += mask[i, j, k] * A[i3, i, j, k] * r3
         div -= (k > 1) ? mask[i, j, k-1] * A[i3, i, j, k-1] * r3 : zero(T)
     end
     return div

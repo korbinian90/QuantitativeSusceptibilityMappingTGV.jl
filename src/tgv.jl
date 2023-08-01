@@ -18,12 +18,12 @@ function use_cpu()
 end
 
 
-function qsm_full(phase, mask, res; kw...)
+function qsm_tgv(phase, mask, res; kw...)
     laplace_phi0 = laplacian(phase, res)
-    return qsm_tgv(laplace_phi0, mask, res; kw...)
+    return qsm_tgv_laplacian(laplace_phi0, mask, res; kw...)
 end
 
-function qsm_tgv(laplace_phi0, mask, res; mag=nothing, TE, fieldstrength=3, omega=[0, 0, 1], alpha=(0.0015, 0.0005), sigma=0.8, iterations=1000, erosions=3, type=Float32, gpu=false)
+function qsm_tgv_laplacian(laplace_phi0, mask, res; mag=nothing, TE, fieldstrength=3, omega=[0, 0, 1], alpha=(0.0015, 0.0005), sigma=0.8, iterations=1000, erosions=3, type=Float32, gpu=false)
     cu = Data.Array
 
     mask_orig = copy(mask)

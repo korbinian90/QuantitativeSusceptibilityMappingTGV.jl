@@ -1,6 +1,6 @@
 module TGV_QSM
 
-using CUDA, KernelAbstractions, PaddedViews, ImageMorphology, Interpolations, Rotations, OffsetArrays, StaticArrays, ImageFiltering, LinearAlgebra
+using CUDA, PaddedViews, ImageMorphology, Interpolations, Rotations, OffsetArrays, StaticArrays, ImageFiltering, LinearAlgebra
 using ParallelStencil, ParallelStencil.FiniteDifferences3D
 
 if CUDA.functional()

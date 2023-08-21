@@ -1,11 +1,13 @@
 qsm_tgv(phase, mask, res; kw...) = qsm_tgv_laplacian(get_laplace_phase3(phase, res), mask, res; kw...)
-function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=1000, erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32)
+function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=3000, erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32)
     device, cu = select_device(gpu)
     laplace_phi0, res, alpha, fieldstrength, mask = adjust_types(type, laplace_phi0, res, alpha, fieldstrength, mask)
 
     for _ in 1:erosions
         mask = erode_mask(mask)
     end
+
+    iterations = adjust_iterations(iterations, res)
 
     laplace_phi0, mask, box_indices, original_size = reduce_to_mask_box(laplace_phi0, mask)
 
@@ -73,6 +75,11 @@ function initialize_device_variables(type, sz, cu)
     return chi, chi_, w, w_, phi, phi_, eta, p, q
 end
 
+function adjust_iterations(iterations, res)
+    iterations = round(Int, iterations / sqrt(prod(res)))
+    return iterations
+end
+
 function de_dimensionalize(res, alpha, laplace_phi0)
     res_corr = prod(res)^(-1 / 3)
     res = res .* res_corr
@@ -98,7 +105,7 @@ function set_parameters(alpha, res, omega, cu)
 end
 
 function adjust_types(type, laplace_phi_0, res, alpha, fieldstrength, mask)
-    type.(laplace_phi_0), type.(abs.(res)), type.(alpha), type(fieldstrength), mask .!= 0
+    type.(laplace_phi_0), collect(type.(abs.(res))), collect(type.(alpha)), type(fieldstrength), mask .!= 0
 end
 
 function reduce_to_mask_box(laplace_phi0, mask)

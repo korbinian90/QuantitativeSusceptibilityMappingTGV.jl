@@ -1,5 +1,5 @@
 qsm_tgv(phase, mask, res; kw...) = qsm_tgv_laplacian(get_laplace_phase3(phase, res), mask, res; kw...)
-function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=3000, erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32, dedimensionalize=true, taufactor=1)
+function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=3000, erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32, dedimensionalize=true, taufactor=1, correct_laplacian=true)
     device, cu = select_device(gpu)
     laplace_phi0, res, alpha, fieldstrength, mask = adjust_types(type, laplace_phi0, res, alpha, fieldstrength, mask)
 
@@ -17,7 +17,9 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldst
     
     mask0 = erode_mask(mask) # one additional erosion in mask0
 
-    laplace_phi0 .-= mean(laplace_phi0[mask0]) # mean correction to avoid background artefact
+    if correct_laplacian
+        laplace_phi0 .-= mean(laplace_phi0[mask0]) # mean correction to avoid background artefact
+    end
 
     alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel = set_parameters(alpha, res, omega, cu)
 

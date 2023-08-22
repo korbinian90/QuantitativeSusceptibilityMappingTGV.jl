@@ -1,5 +1,5 @@
 qsm_tgv(phase, mask, res; kw...) = qsm_tgv_laplacian(get_laplace_phase3(phase, res), mask, res; kw...)
-function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=1000, erosions=3, dedimensionalize=true, type=Float32, gpu=CUDA.functional(), nblocks=32, correct_laplacian=true)
+function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=1000, erosions=3, dedimensionalize=true, type=Float32, gpu=CUDA.functional(), nblocks=32, correct_laplacian=true, taufactor=1)
     device, cu = select_device(gpu)
     laplace_phi0, res, alpha, fieldstrength, mask = adjust_types(type, laplace_phi0, res, alpha, fieldstrength, mask)
 
@@ -54,7 +54,7 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldst
         # primal update
         KernelAbstractions.synchronize(device)
         update_phi_kernel!(device, nblocks)(phi, phi_, eta, mask, mask0, tau, laplace_kernel; ndrange)
-        update_chi_kernel!(device, nblocks)(chi, chi_, eta, p, mask0, tau, resinv, dipole_kernel; ndrange)
+        update_chi_kernel!(device, nblocks)(chi, chi_, eta, p, mask0, tau * taufactor, resinv, dipole_kernel; ndrange)
         update_w_kernel!(device, nblocks)(w, w_, p, q, mask, mask0, tau, resinv; ndrange)
         #####################
         # extragradient update

@@ -1,5 +1,5 @@
 qsm_tgv(phase, mask, res; kw...) = qsm_tgv_laplacian(get_laplace_phase3(phase, res), mask, res; kw...)
-function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=3000, erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32)
+function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=3000, erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32, dedimensionalize=true)
     device, cu = select_device(gpu)
     laplace_phi0, res, alpha, fieldstrength, mask = adjust_types(type, laplace_phi0, res, alpha, fieldstrength, mask)
 
@@ -11,7 +11,9 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldst
 
     laplace_phi0, mask, box_indices, original_size = reduce_to_mask_box(laplace_phi0, mask)
 
-    res, alpha, laplace_phi0 = de_dimensionalize(res, alpha, laplace_phi0)
+    if dedimensionalize
+        res, alpha, laplace_phi0 = de_dimensionalize(res, alpha, laplace_phi0)
+    end
     
     mask0 = erode_mask(mask) # one additional erosion in mask0
 

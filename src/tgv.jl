@@ -1,16 +1,21 @@
 qsm_tgv(phase, mask, res; kw...) = qsm_tgv_laplacian(get_laplace_phase3(phase, res), mask, res; kw...)
-function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=1000, erosions=3, dedimensionalize=true, type=Float32, gpu=CUDA.functional(), nblocks=32, correct_laplacian=true, taufactor=1)
+function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=1000, erosions=3, dedimensionalize=true, type=Float32, gpu=CUDA.functional(), nblocks=32, correct_laplacian=true, taufactor=1, do_adjust_iterations=true)
     device, cu = select_device(gpu)
     laplace_phi0, res, alpha, fieldstrength, mask = adjust_types(type, laplace_phi0, res, alpha, fieldstrength, mask)
 
     # for _ in 1:erosions
     #     mask = erode_mask(mask)
     # end
-
+    if do_adjust_iterations
+        iterations = adjust_iterations(iterations, res)
+    end
     laplace_phi0, mask, box_indices, original_size = reduce_to_mask_box(laplace_phi0, mask)
 
     if dedimensionalize
+        println("Do dedimensionalize")
         res, alpha, laplace_phi0 = de_dimensionalize(res, alpha, laplace_phi0)
+    else
+        println("No dedimensionalize")
     end
 
     # mask0 = erode_mask(mask) # one additional erosion in mask0
@@ -46,9 +51,9 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldst
         # (phi_, phi) = (phi, phi_)
         # (chi_, chi) = (chi, chi_)
         # (w_, w) = (w, w_)
-        phi_ = phi
-        chi_ = chi
-        w_ = w
+        phi_ = copy(phi)
+        chi_ = copy(chi)
+        w_ = copy(w)
 
         ###############
         # primal update
@@ -68,6 +73,12 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldst
     res_chi = zeros(type, original_size)
     view(res_chi, box_indices...) .= scale(Array(chi), TE, fieldstrength)
     return res_chi
+end
+
+function adjust_iterations(iterations, res)
+    println("Adjusting Iterations")
+    iterations = round(Int, iterations / sqrt(prod(res)))
+    return iterations
 end
 
 function initialize_device_variables(type, sz, cu)

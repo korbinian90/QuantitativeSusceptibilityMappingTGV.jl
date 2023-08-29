@@ -1,7 +1,5 @@
 # TGV_QSM
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://korbinian90.github.io/TGV_QSM.jl/stable/)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://korbinian90.github.io/TGV_QSM.jl/dev/)
 [![Build Status](https://github.com/korbinian90/TGV_QSM.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/korbinian90/TGV_QSM.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/korbinian90/TGV_QSM.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/korbinian90/TGV_QSM.jl)
 
@@ -23,7 +21,7 @@ Note: The parallel CPU version is currently about 30% slower than the Cython ver
 ## Example to run TGV
 
 1. Prepare files  
-    `mask` and `phase` are required
+    3D `mask` and `phase` NIfTI files are required
 2. Run this in the REPL or a julia file
 
     ```julia
@@ -37,7 +35,7 @@ Note: The parallel CPU version is currently about 30% slower than the Cython ver
         fieldstrength = 3 # in [T]
         
         # Automatically runs on GPU, if a CUDA device is detected
-        @time chi = qsm_tgv(phase, mask, res; TE, fieldstrength);
+        @time chi = qsm_tgv(phase, mask, res; TE=TE, fieldstrength=fieldstrength);
 
         savenii(chi, "chi", "<folder-to-save>")
     ```
@@ -49,7 +47,7 @@ Note: The parallel CPU version is currently about 30% slower than the Cython ver
 
     It uses the number of threads julia was started with. You can use `julia --threads=auto` or set it to a specific number of threads.
 
-The first execution might take some time to compile the kernels (<1min).
+The first execution might take some time to compile the kernels (~1min).
 
 ## Self contained example to test if everything works
 

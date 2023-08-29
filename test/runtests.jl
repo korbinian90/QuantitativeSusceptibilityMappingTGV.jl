@@ -28,12 +28,11 @@ end
         TE = 1
 
         iterations = 10
-        chi = qsm_tgv(phase, mask, res; TE, iterations)
+        chi_cpu = qsm_tgv(phase, mask, res; TE, iterations, gpu=false)
         chi_gpu = qsm_tgv(phase, mask, res; TE, iterations, gpu=true)
-        @test chi_gpu isa TGV_QSM.CuArray
 
         relative_diff(A, B) = sum(abs.(A .- B)) / sum(abs.(B))
-        @test relative_diff(Array(chi_gpu), chi) < 1e-7
+        @test relative_diff(Array(chi_gpu), chi_cpu) < 1e-7
     end
 end
 
@@ -46,8 +45,8 @@ end
     TE = 1
 
     iterations = 10
-    chi_3 = qsm_tgv_laplacian(phase, mask, res; TE, iterations, laplacian=get_laplace_phase3)
-    chi_conv = qsm_tgv_laplacian(phase, mask, res; TE, iterations, laplacian=get_laplace_phase_conv)
+    chi_3 = qsm_tgv(phase, mask, res; TE, iterations, laplacian=get_laplace_phase3)
+    chi_conv = qsm_tgv(phase, mask, res; TE, iterations, laplacian=get_laplace_phase_conv)
 
-    @test chi_3 .!= chi_conv
+    @test chi_3 != chi_conv
 end

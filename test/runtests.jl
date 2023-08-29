@@ -6,14 +6,14 @@ using TestItemRunner
 
 @testitem "TGV_QSM.jl" begin
     sz = (20, 20, 20)
-    laplace_phi0 = randn(sz)
+    phase = randn(sz)
     mask = trues(sz)
     res = [1, 1, 1]
     omega = [0, 0, 1]
     TE = 1
 
     iterations = 10
-    chi = qsm_tgv(laplace_phi0, mask, res; TE, iterations)
+    chi = qsm_tgv(phase, mask, res; TE, iterations)
 
     @test size(chi) == sz
 end
@@ -21,18 +21,33 @@ end
 @testitem "GPU" begin
     if TGV_QSM.CUDA.functional()
         sz = (20, 20, 20)
-        laplace_phi0 = randn(sz)
+        phase = randn(sz)
         mask = trues(sz)
         res = [1, 1, 1]
         omega = [0, 0, 1]
         TE = 1
 
         iterations = 10
-        chi = qsm_tgv(laplace_phi0, mask, res; TE, iterations)
-        chi_gpu = qsm_tgv(laplace_phi0, mask, res; TE, iterations, gpu=true)
+        chi = qsm_tgv(phase, mask, res; TE, iterations)
+        chi_gpu = qsm_tgv(phase, mask, res; TE, iterations, gpu=true)
         @test chi_gpu isa TGV_QSM.CuArray
 
         relative_diff(A, B) = sum(abs.(A .- B)) / sum(abs.(B))
         @test relative_diff(Array(chi_gpu), chi) < 1e-7
     end
+end
+
+@testitem "Laplacian" begin
+    sz = (20, 20, 20)
+    phase = randn(sz)
+    mask = trues(sz)
+    res = [1, 1, 1]
+    omega = [0, 0, 1]
+    TE = 1
+
+    iterations = 10
+    chi_3 = qsm_tgv_laplacian(phase, mask, res; TE, iterations, laplacian=get_laplace_phase3)
+    chi_conv = qsm_tgv_laplacian(phase, mask, res; TE, iterations, laplacian=get_laplace_phase_conv)
+
+    @test chi_3 .!= chi_conv
 end

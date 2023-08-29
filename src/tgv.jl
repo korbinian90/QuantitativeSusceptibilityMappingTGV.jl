@@ -1,22 +1,20 @@
-qsm_tgv(phase, mask, res; kw...) = qsm_tgv_laplacian(get_laplace_phase3(phase, res), mask, res; kw...)
-function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=3000, erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32, dedimensionalize=true, taufactor=1, correct_laplacian=true)
+function qsm_tgv(phase, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=get_default_iterations(res), erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32, dedimensionalize=true, taufactor=1, correct_laplacian=true, laplacian=get_laplace_phase3)
     device, cu = select_device(gpu)
-    laplace_phi0, res, alpha, fieldstrength, mask = adjust_types(type, laplace_phi0, res, alpha, fieldstrength, mask)
+    phase, res, alpha, fieldstrength, mask = adjust_types(type, phase, res, alpha, fieldstrength, mask)
 
     for _ in 1:erosions
         mask = erode_mask(mask)
     end
 
-    iterations = adjust_iterations(iterations, res)
+    phase, mask, box_indices, original_size = reduce_to_mask_box(phase, mask)
 
-    laplace_phi0, mask, box_indices, original_size = reduce_to_mask_box(laplace_phi0, mask)
+    mask0 = erode_mask(mask) # one additional erosion in mask0
+    laplace_phi0 = laplacian(phase, res)
 
     if dedimensionalize
         res, alpha, laplace_phi0 = de_dimensionalize(res, alpha, laplace_phi0)
     end
     
-    mask0 = erode_mask(mask) # one additional erosion in mask0
-
     if correct_laplacian
         laplace_phi0 .-= mean(laplace_phi0[mask0]) # mean correction to avoid background artefact
     end
@@ -28,8 +26,8 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldst
     chi, chi_, w, w_, phi, phi_, eta, p, q = initialize_device_variables(type, size(laplace_phi0), cu)
 
     ndrange = size(laplace_phi0)
-    @showprogress 1 "Running $iterations TGV iterations..." for k in 1:iterations
 
+    @showprogress 1 "Running $iterations TGV iterations..." for k in 1:iterations
         #############
         # dual update
         KernelAbstractions.synchronize(device)
@@ -49,15 +47,16 @@ function qsm_tgv_laplacian(laplace_phi0, mask, res; TE, omega=[0, 0, 1], fieldst
         update_phi_kernel!(device, nblocks)(phi, phi_, eta, mask, mask0, tau, laplace_kernel; ndrange)
         update_chi_kernel!(device, nblocks)(chi, chi_, eta, p, mask0, tau * taufactor, resinv, dipole_kernel; ndrange)
         update_w_kernel!(device, nblocks)(w, w_, p, q, mask, mask0, tau, resinv; ndrange)
+
         #####################
         # extragradient update
-
         KernelAbstractions.synchronize(device)
         extragradient_update!(phi_, phi)
         extragradient_update!(chi_, chi)
         extragradient_update!(w_, w)
     end
 
+    # Assign result to full size output array
     res_chi = zeros(type, original_size)
     view(res_chi, box_indices...) .= scale(Array(chi), TE, fieldstrength)
     return res_chi
@@ -79,9 +78,9 @@ function initialize_device_variables(type, sz, cu)
     return chi, chi_, w, w_, phi, phi_, eta, p, q
 end
 
-function adjust_iterations(iterations, res)
-    iterations = round(Int, iterations / sqrt(prod(res)))
-    return iterations
+function get_default_iterations(res)
+    it = 3000 # default for res=[1,1,1]
+    return round(Int, it / prod(res))
 end
 
 function de_dimensionalize(res, alpha, laplace_phi0)
@@ -99,7 +98,7 @@ function set_parameters(alpha, res, omega, cu)
     grad_norm_sqr = 4 * (sum(res .^ -2))
     norm_sqr = 2 * grad_norm_sqr^2 + 1
     tau = 1 / sqrt(norm_sqr)
-    sigma = (1 / norm_sqr) / tau # TODO always identical to tau
+    sigma = (1 / norm_sqr) / tau # always identical to tau
     
     resinv = cu(1 ./ res)
     laplace_kernel = cu(res .^ -2)
@@ -197,4 +196,26 @@ function get_best_local_h1(dx; axis)
     J = getindex.(G, 5) .- 2
 
     return I, J
+end
+
+function get_laplace_phase_conv(phase, res=[1, 1, 1])
+    real = cos.(phase)
+    imag = sin.(phase)
+
+    k = laplacian_kernel(res)
+    del_real = imfilter(real, k)
+    del_imag = imfilter(imag, k)
+
+    laplacian_phase = del_imag .* real - del_real .* imag
+
+    return laplacian_phase
+end
+
+function laplacian_kernel(res)
+    f = 1 ./ res .^ 2
+    f_sum = -2 * sum(f)
+    k = [0 0 0; 0 f[3] 0; 0 0 0;;;
+        0 f[1] 0; f[2] f_sum f[2]; 0 f[1] 0;;;
+        0 0 0; 0 f[3] 0; 0 0 0]
+    return centered(k)
 end

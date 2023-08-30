@@ -47,6 +47,9 @@ end
     iterations = 10
     chi_3 = qsm_tgv(phase, mask, res; TE, iterations, laplacian=get_laplace_phase3)
     chi_conv = qsm_tgv(phase, mask, res; TE, iterations, laplacian=get_laplace_phase_conv)
+    chi_romeo = qsm_tgv(phase, mask, res; TE, iterations, laplacian=get_laplace_phase_romeo)
 
     @test chi_3 != chi_conv
+    @test chi_romeo != chi_conv
+    @test chi_3 != chi_romeo
 end

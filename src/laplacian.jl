@@ -45,7 +45,7 @@ function get_best_local_h1(dx; axis)
     return I, J
 end
 
-function get_laplace_phase_conv(phase, res=[1, 1, 1])
+function get_laplace_phase_conv(phase, res)
     real = cos.(phase)
     imag = sin.(phase)
 
@@ -65,4 +65,10 @@ function laplacian_kernel(res)
         0 f[1] 0; f[2] f_sum f[2]; 0 f[1] 0;;;
         0 0 0; 0 f[3] 0; 0 0 0]
     return centered(k)
+end
+
+function get_laplace_phase_romeo(phase, res)
+    unwrapped = unwrap(phase)
+    laplacian = imfilter(unwrapped, laplacian_kernel(res))
+    return laplacian
 end

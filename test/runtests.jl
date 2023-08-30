@@ -53,3 +53,9 @@ end
     @test chi_romeo != chi_conv
     @test chi_3 != chi_romeo
 end
+
+@testitem "Aqua" begin
+    using Aqua
+    Aqua.test_ambiguities(TGV_QSM)
+    Aqua.test_all(TGV_QSM; ambiguities=false)
+end

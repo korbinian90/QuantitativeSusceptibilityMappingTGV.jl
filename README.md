@@ -8,7 +8,7 @@ Note: The parallel CPU version is currently about 30% slower than the Cython ver
 
 ## Setup
 
-1. Install [Julia](https://julialang.org/downloads/) (v1.6 or newer, v1.9+ recommended)
+1. Install [Julia](https://julialang.org/downloads/) (v1.9+ recommended)
 2. Install this package  
     Open the julia REPL and type:
 

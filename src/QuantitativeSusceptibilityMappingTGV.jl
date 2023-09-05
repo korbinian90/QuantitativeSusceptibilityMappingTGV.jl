@@ -1,4 +1,4 @@
-module TGV_QSM
+module QuantitativeSusceptibilityMappingTGV
 
 using CUDA, KernelAbstractions, PaddedViews, ImageMorphology, Interpolations, Rotations, OffsetArrays, StaticArrays, ProgressMeter, Statistics, ImageFiltering, ROMEO
 

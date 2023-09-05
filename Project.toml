@@ -1,4 +1,4 @@
-name = "TGV_QSM"
+name = "QuantitativeSusceptibilityMappingTGV"
 uuid = "bd393529-335a-4aed-902f-5de61cc7ff49"
 authors = ["Korbinian Eckstein korbinian90@gmail.com"]
 version = "0.1.0"

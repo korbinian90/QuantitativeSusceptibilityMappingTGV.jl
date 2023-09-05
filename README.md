@@ -1,7 +1,7 @@
-# TGV_QSM
+# QuantitativeSusceptibilityMappingTGV
 
-[![Build Status](https://github.com/korbinian90/TGV_QSM.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/korbinian90/TGV_QSM.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Coverage](https://codecov.io/gh/korbinian90/TGV_QSM.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/korbinian90/TGV_QSM.jl)
+[![Build Status](https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Coverage](https://codecov.io/gh/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/korbinian90/QuantitativeSusceptibilityMappingTGV.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 This project is an improvement of the [Python source code](http://www.neuroimaging.at/pages/qsm.php) (Cython)  
@@ -15,7 +15,7 @@ The parallel CPU version is about twice as fast as the Cython version, the GPU v
 
     ```julia
         import Pkg
-        Pkg.add(url="https://github.com/korbinian90/TGV_QSM.jl")
+        Pkg.add(url="https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl")
         Pkg.add("MriResearchTools") # for nifti handling
     ```
 
@@ -26,7 +26,7 @@ The parallel CPU version is about twice as fast as the Cython version, the GPU v
 2. Run this in the REPL or a julia file
 
     ```julia
-        using TGV_QSM, MriResearchTools
+        using QuantitativeSusceptibilityMappingTGV, MriResearchTools
 
         mask = niread("<mask-path>") .!= 0; # convert to boolean
         phase = readphase("<phase-path>");
@@ -53,7 +53,7 @@ The first execution might take some time to compile the kernels (~1min).
 ## Self contained example to test if everything works
 
 ```julia
-   using TGV_QSM
+   using QuantitativeSusceptibilityMappingTGV
 
     sz = (20, 20, 20)
     res = [1, 1, 1]

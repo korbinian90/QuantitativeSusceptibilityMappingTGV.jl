@@ -1,14 +1,14 @@
 ```@meta
-CurrentModule = TGV_QSM
+CurrentModule = QuantitativeSusceptibilityMappingTGV
 ```
 
-# TGV_QSM
+# QuantitativeSusceptibilityMappingTGV
 
-Documentation for [TGV_QSM](https://github.com/korbinian90/TGV_QSM.jl).
+Documentation for [QuantitativeSusceptibilityMappingTGV](https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl).
 
 ```@index
 ```
 
 ```@autodocs
-Modules = [TGV_QSM]
+Modules = [QuantitativeSusceptibilityMappingTGV]
 ```

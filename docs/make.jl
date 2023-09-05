@@ -1,16 +1,16 @@
-using TGV_QSM
+using QuantitativeSusceptibilityMappingTGV
 using Documenter
 
-DocMeta.setdocmeta!(TGV_QSM, :DocTestSetup, :(using TGV_QSM); recursive=true)
+DocMeta.setdocmeta!(QuantitativeSusceptibilityMappingTGV, :DocTestSetup, :(using QuantitativeSusceptibilityMappingTGV); recursive=true)
 
 makedocs(;
-    modules=[TGV_QSM],
+    modules=[QuantitativeSusceptibilityMappingTGV],
     authors="Korbinian Eckstein korbinian90@gmail.com",
-    repo="https://github.com/korbinian90/TGV_QSM.jl/blob/{commit}{path}#{line}",
-    sitename="TGV_QSM.jl",
+    repo="https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/blob/{commit}{path}#{line}",
+    sitename="QuantitativeSusceptibilityMappingTGV.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://korbinian90.github.io/TGV_QSM.jl",
+        canonical="https://korbinian90.github.io/QuantitativeSusceptibilityMappingTGV.jl",
         edit_link="main",
         assets=String[],
     ),
@@ -20,6 +20,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/korbinian90/TGV_QSM.jl",
+    repo="github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl",
     devbranch="main",
 )

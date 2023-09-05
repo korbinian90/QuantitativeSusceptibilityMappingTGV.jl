@@ -1,10 +1,10 @@
-using TGV_QSM
+using QuantitativeSusceptibilityMappingTGV
 using Test
 using TestItemRunner
 
 @run_package_tests
 
-@testitem "TGV_QSM.jl" begin
+@testitem "QuantitativeSusceptibilityMappingTGV.jl" begin
     sz = (20, 20, 20)
     phase = randn(sz)
     mask = trues(sz)
@@ -19,7 +19,7 @@ using TestItemRunner
 end
 
 @testitem "GPU" begin
-    if TGV_QSM.CUDA.functional()
+    if QuantitativeSusceptibilityMappingTGV.CUDA.functional()
         sz = (20, 20, 20)
         phase = randn(sz)
         mask = trues(sz)
@@ -56,6 +56,6 @@ end
 
 @testitem "Aqua" begin
     using Aqua
-    Aqua.test_ambiguities(TGV_QSM)
-    Aqua.test_all(TGV_QSM; ambiguities=false)
+    Aqua.test_ambiguities(QuantitativeSusceptibilityMappingTGV)
+    Aqua.test_all(QuantitativeSusceptibilityMappingTGV; ambiguities=false)
 end

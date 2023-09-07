@@ -14,7 +14,7 @@ function qsm_tgv(phase, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[
     if dedimensionalize
         res, alpha, laplace_phi0 = de_dimensionalize(res, alpha, laplace_phi0)
     end
-    
+
     if correct_laplacian
         laplace_phi0 .-= mean(laplace_phi0[mask0]) # mean correction to avoid background artefact
     end
@@ -27,7 +27,15 @@ function qsm_tgv(phase, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[
 
     ndrange = size(laplace_phi0)
 
-    @showprogress 1 "Running $iterations TGV iterations..." for k in 1:iterations
+    if iterations isa AbstractArray
+        max_iterations = iterations[end]
+        ret = []
+    else
+        max_iterations = iterations
+        ret = nothing
+    end
+
+    @showprogress 1 "Running $max_iterations TGV iterations..." for k in 1:max_iterations
         #############
         # dual update
         KernelAbstractions.synchronize(device)
@@ -54,6 +62,16 @@ function qsm_tgv(phase, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[
         extragradient_update!(phi_, phi)
         extragradient_update!(chi_, chi)
         extragradient_update!(w_, w)
+
+        if iterations isa AbstractArray && k in iterations
+            res_chi = zeros(type, original_size)
+            view(res_chi, box_indices...) .= scale(Array(chi), TE, fieldstrength)
+            push!(ret, res_chi)
+        end
+    end
+
+    if iterations isa AbstractArray
+        return ret
     end
 
     # Assign result to full size output array
@@ -99,7 +117,7 @@ function set_parameters(alpha, res, omega, cu)
     norm_sqr = 2 * grad_norm_sqr^2 + 1
     tau = 1 / sqrt(norm_sqr)
     sigma = (1 / norm_sqr) / tau # always identical to tau
-    
+
     resinv = cu(1 ./ res)
     laplace_kernel = cu(res .^ -2)
     dipole_kernel = cu((1 / 3 .- omega .^ 2) ./ (res .^ 2))

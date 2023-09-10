@@ -1,4 +1,4 @@
-function qsm_tgv(phase, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], iterations=get_default_iterations(res), erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32, dedimensionalize=true, taufactor=1, correct_laplacian=true, laplacian=get_laplace_phase3)
+function qsm_tgv(phase, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], step_size=2, iterations=get_default_iterations(res, step_size), erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32, dedimensionalize=true, correct_laplacian=true, laplacian=get_laplace_phase3)
     device, cu = select_device(gpu)
     phase, res, alpha, fieldstrength, mask = adjust_types(type, phase, res, alpha, fieldstrength, mask)
 
@@ -40,8 +40,8 @@ function qsm_tgv(phase, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[
         # dual update
         KernelAbstractions.synchronize(device)
         update_eta_kernel!(device, nblocks)(eta, phi_, chi_, laplace_phi0, mask0, sigma, laplace_kernel, dipole_kernel; ndrange)
-        update_p_kernel!(device, nblocks)(p, chi_, w_, mask, mask0, sigma, alphainv[2], resinv; ndrange)
-        update_q_kernel!(device, nblocks)(q, w_, mask0, sigma, alphainv[1], resinv; ndrange)
+        update_p_kernel!(device, nblocks)(p, chi_, w_, mask, mask0, sigma * step_size, alphainv[2], resinv; ndrange)
+        update_q_kernel!(device, nblocks)(q, w_, mask0, sigma * step_size, alphainv[1], resinv; ndrange)
 
         #######################
         # swap primal variables
@@ -53,8 +53,8 @@ function qsm_tgv(phase, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[
         # primal update
         KernelAbstractions.synchronize(device)
         update_phi_kernel!(device, nblocks)(phi, phi_, eta, mask, mask0, tau, laplace_kernel; ndrange)
-        update_chi_kernel!(device, nblocks)(chi, chi_, eta, p, mask0, tau * taufactor, resinv, dipole_kernel; ndrange)
-        update_w_kernel!(device, nblocks)(w, w_, p, q, mask, mask0, tau, resinv; ndrange)
+        update_chi_kernel!(device, nblocks)(chi, chi_, eta, p, mask0, tau * step_size, resinv, dipole_kernel; ndrange)
+        update_w_kernel!(device, nblocks)(w, w_, p, q, mask, mask0, tau * step_size, resinv; ndrange)
 
         #####################
         # extragradient update
@@ -96,9 +96,12 @@ function initialize_device_variables(type, sz, cu)
     return chi, chi_, w, w_, phi, phi_, eta, p, q
 end
 
-function get_default_iterations(res)
-    it = 3000 # default for res=[1,1,1]
-    return round(Int, it / prod(res))
+function get_default_iterations(res, step_size)
+    # Heuristic formula
+    it = 2500 # default for res=[1,1,1]
+    it /= 1 + log(step_size) # roughly linear start and then decreasing
+    min_iterations = 1500 # even low res data needs at least 1500 iterations
+    return max(min_iterations, round(Int, it / prod(res)^0.8))
 end
 
 function de_dimensionalize(res, alpha, laplace_phi0)

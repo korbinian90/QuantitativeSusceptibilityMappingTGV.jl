@@ -1,4 +1,4 @@
-function qsm_tgv(phase, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], step_size=2, iterations=get_default_iterations(res, step_size), erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32, dedimensionalize=true, correct_laplacian=true, laplacian=get_laplace_phase3)
+function qsm_tgv(phase, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], step_size=2, iterations=get_default_iterations(res, step_size), erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32, dedimensionalize=true, correct_laplacian=true, laplacian=get_laplace_phase_del)
     device, cu = select_device(gpu)
     phase, res, alpha, fieldstrength, mask = adjust_types(type, phase, res, alpha, fieldstrength, mask)
 

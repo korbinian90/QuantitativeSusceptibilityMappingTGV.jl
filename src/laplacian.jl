@@ -1,3 +1,4 @@
+# original version from Python TGV implementation
 function get_laplace_phase3(phase, res)
     # pad phase
     sz = size(phase)
@@ -45,7 +46,8 @@ function get_best_local_h1(dx; axis)
     return I, J
 end
 
-function get_laplace_phase_conv(phase, res)
+# laplacian filter from laplacian unwrapping
+function get_laplace_phase_del(phase, res)
     real = cos.(phase)
     imag = sin.(phase)
 

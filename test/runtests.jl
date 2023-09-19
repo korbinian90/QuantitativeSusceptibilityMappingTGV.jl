@@ -9,7 +9,6 @@ using TestItemRunner
     phase = randn(sz)
     mask = trues(sz)
     res = [1, 1, 1]
-    omega = [0, 0, 1]
     TE = 1
 
     iterations = 10
@@ -24,7 +23,6 @@ end
         phase = randn(sz)
         mask = trues(sz)
         res = [1, 1, 1]
-        omega = [0, 0, 1]
         TE = 1
 
         iterations = 10
@@ -41,7 +39,6 @@ end
     phase = randn(sz)
     mask = trues(sz)
     res = [1, 1, 1]
-    omega = [0, 0, 1]
     TE = 1
 
     iterations = 10

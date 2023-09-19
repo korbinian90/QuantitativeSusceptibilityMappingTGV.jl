@@ -121,6 +121,11 @@ function de_dimensionalize(res, alpha, laplace_phi0)
 end
 
 function set_parameters(alpha, res, B0_dir, cu)
+    # If there are other values than 0 and 1 in B0 dir then print a warning
+    if !all(B0_dir[i] in [0, 1] for i in 1:3)
+        @warn("Warning: works only for grid-aligned B0 directions at the moment, but it is B0_dir=$B0_dir")
+    end
+
     alphainv = 1 ./ alpha
 
     grad_norm_sqr = 4 * (sum(res .^ -2))

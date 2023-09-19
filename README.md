@@ -31,22 +31,30 @@ The parallel CPU version is about twice as fast as the Cython version, the GPU v
         mask = niread("<mask-path>") .!= 0; # convert to boolean
         phase = readphase("<phase-path>");
         
-        res = [1, 1, 1] # in [mm]
+        voxel_size = header(phase).pixdim[2:4] # in [mm]
         TE = 0.004 # in [s]
         fieldstrength = 3 # in [T]
         
         # Automatically runs on GPU, if a CUDA device is detected
-        @time chi = qsm_tgv(phase, mask, res; TE=TE, fieldstrength=fieldstrength);
+        chi = qsm_tgv(phase, mask, res; TE=TE, fieldstrength=fieldstrength);
 
         savenii(chi, "chi", "<folder-to-save>")
     ```
 
     ```julia
         # Run on CPU in parallel
-        @time chi = qsm_tgv(phase, mask, res; TE, fieldstrength, alpha=(0.0015, 0.0005), gpu=false);
+        chi = qsm_tgv(phase, mask, res; TE, fieldstrength, alpha=(0.0015, 0.0005), gpu=false);
     ```
 
-    It uses the number of threads julia was started with. You can use `julia --threads=auto` or set it to a specific number of threads.
+    ```julia
+        # Convenient way to obtain settings from JSON file
+        using JSON
+        settings = JSON.parse(read("<phase-json>", String))
+        fieldstrength = settings["MagneticFieldStrength"]
+        TE = settings["EchoTime"]
+    ```
+
+    It uses the number of CPU threads julia was started with. You can use `julia --threads=auto` or set it to a specific number of threads.
 
 The first execution might take some time to compile the kernels (~1min).
 

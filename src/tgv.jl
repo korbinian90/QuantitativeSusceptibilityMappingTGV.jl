@@ -1,4 +1,4 @@
-function qsm_tgv(phase, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, alpha=[0.003, 0.001], step_size=2, iterations=get_default_iterations(res, step_size), erosions=3, type=Float32, gpu=CUDA.functional(), nblocks=32, dedimensionalize=true, correct_laplacian=true, laplacian=get_laplace_phase_del)
+function qsm_tgv(phase, mask, res; TE, omega=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=true, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=CUDA.functional(), nblocks=32)
     device, cu = select_device(gpu)
     phase, res, alpha, fieldstrength, mask = adjust_types(type, phase, res, alpha, fieldstrength, mask)
 
@@ -99,9 +99,16 @@ end
 function get_default_iterations(res, step_size)
     # Heuristic formula
     it = 2500 # default for res=[1,1,1]
-    it /= 1 + log(step_size) # roughly linear start and then decreasing
     min_iterations = 1500 # even low res data needs at least 1500 iterations
-    return max(min_iterations, round(Int, it / prod(res)^0.8))
+    it = max(min_iterations, it / prod(res)^0.8)
+    it /= step_size^0.6
+    return round(Int, it)
+end
+
+function get_default_alpha(regularization)
+    # Heuristic formula, regularization=2 is default, 1 is low regularization, 3 is high regularization
+    alpha = [0.001, 0.001] + [0.001, 0.002] * regularization
+    return alpha
 end
 
 function de_dimensionalize(res, alpha, laplace_phi0)

@@ -1,9 +1,10 @@
 # original version from Python TGV implementation
 function get_laplace_phase3(phase, res)
-    # pad phase
-    sz = size(phase)
-    padded_indices = (0:sz[1]+1, 0:sz[2]+1, 0:sz[3]+1)
-    phase = PaddedView(0, phase, padded_indices)
+    # Pad phase
+    phase = cat(phase[[1], :, :], phase, phase[[end], :, :]; dims=1)
+    phase = cat(phase[:, [1], :], phase, phase[:, [end], :]; dims=2)
+    phase = cat(phase[:, :, [1]], phase, phase[:, :, [end]]; dims=3)
+    phase = OffsetArray(phase, OffsetArrays.Origin(0)) # start indices at 0
 
     dx = phase[1:end, 1:end-1, 1:end-1] .- phase[0:end-1, 1:end-1, 1:end-1]
     dy = phase[1:end-1, 1:end, 1:end-1] .- phase[1:end-1, 0:end-1, 1:end-1]

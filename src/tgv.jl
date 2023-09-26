@@ -177,9 +177,12 @@ end
 
 # get indices for the smallest box that contains the mask
 function mask_box_indices(mask)
-    function get_range(mask, dims)
+    function get_range(mask, dim)
+        dims = [(2, 3), (1, 3), (1, 2)][dim]
         mask_projection = dropdims(reduce(max, mask; dims); dims)
-        return findfirst(mask_projection):findlast(mask_projection)
+        first = max(findfirst(mask_projection) - 1, 1)
+        last = min(findlast(mask_projection) + 1, size(mask, dim))
+        return first:last
     end
-    return [get_range(mask, dims) for dims in [(2, 3), (1, 3), (1, 2)]]
+    return [get_range(mask, dim) for dim in 1:3]
 end

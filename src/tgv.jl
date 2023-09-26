@@ -107,7 +107,8 @@ end
 
 function get_default_alpha(regularization)
     # Heuristic formula, regularization=2 is default, 1 is low regularization, 3 is high regularization
-    alpha = [0.001, 0.001] + [0.001, 0.002] * regularization
+    alpha = [0.001, 0.001] + [0.001, 0.002] * (regularization - 1)
+    alpha = max.(alpha, 0)
     return alpha
 end
 

@@ -4,7 +4,7 @@
 [![Coverage](https://codecov.io/gh/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/korbinian90/QuantitativeSusceptibilityMappingTGV.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-This project is an improvement of the [Python source code](http://www.neuroimaging.at/pages/qsm.php) (Cython) in terms of speed, artefacts and ease of use.  
+This project is an improvement of the [Python source code](http://www.neuroimaging.at/pages/qsm.php) in terms of speed, artefacts and ease of use.  
 
 ## References
 
@@ -55,6 +55,10 @@ This project is an improvement of the [Python source code](http://www.neuroimagi
     ```
 
 The first execution might take some time to compile the kernels (~1min).
+
+## Command Line Interface
+
+Coming soon
 
 ## Settings
 

@@ -28,7 +28,7 @@ This project is an improvement of the [Python source code](http://www.neuroimagi
 
 1. Prepare files  
     3D `mask` and `phase` NIfTI files are required
-2. Run this in the REPL or a julia file
+2. Run the following commands in an interactive julia REPL or a julia source file
 
     ```julia
     using QuantitativeSusceptibilityMappingTGV, MriResearchTools
@@ -47,6 +47,11 @@ This project is an improvement of the [Python source code](http://www.neuroimagi
     ```
 
     ```julia
+    # Change regularization strength (1-4)
+    chi = qsm_tgv(phase, mask, res; TE, fieldstrength, regularization=1);
+    ```
+
+    ```julia
     # Optionally obtain settings from BIDS JSON file
     using JSON
     settings = JSON.parse(read("<phase-json>", String))
@@ -62,6 +67,8 @@ Coming soon
 
 ## Settings
 
+The default settings were optimized for brain QSM and should lead to good results independently of the acquired resolution.
+
 ```julia
 # Run on CPU in parallel
 chi = qsm_tgv(phase, mask, res; TE, fieldstrength, gpu=false);
@@ -69,25 +76,20 @@ chi = qsm_tgv(phase, mask, res; TE, fieldstrength, gpu=false);
 
 It uses the number of CPU threads julia was started with. You can use `julia --threads=auto` or set it to a specific number of threads.
 
-```julia
-# Change regularization strength (1-4)
-chi = qsm_tgv(phase, mask, res; TE, fieldstrength, regularization=1);
-```
-
 ### Other optional keyword arguments
 
 `erosions=3`: number of erosion steps applied to the mask  
-`B0_dir=[0, 0, 1]`: direction of the B0 field. right angle rotation are currently supported  
+`B0_dir=[0, 0, 1]`: direction of the B0 field. Right angle rotation are currently supported  
 `alpha=[0.003, 0.001]`: manually choose regularization parameters (overwrites `regularization`)  
-`step_size=3`: requires less iterations with highes step size, but might lead to artefacts or iteration instabilities. `step_size=1` is the behaviour of the publication.  
+`step_size=3`: requires less iterations with higher step size, but might lead to artefacts or iteration instabilities. `step_size=1` is the behaviour of the publication  
 `iterations=1000`: manually choose the number of iteration steps  
-`dedimensionalize=false`: optionally apply a dedimensionalization step
-`laplacian=get_laplace_phase_del`: options are `get_laplace_phase3` (corresponds to Cython version), `get_laplace_phase_romeo` and `get_laplace_phase_del` (default). `get_laplace_phase_del` is selected as default as it improves robustness with imperfect phase values.  
-`correct_laplacian=true`: subtracts the mean of the Laplacian inside the mask, which avoid edge artefacts in certain cases
+`dedimensionalize=false`: optionally apply a dedimensionalization step  
+`laplacian=get_laplace_phase_del`: options are `get_laplace_phase3` (corresponds to Cython version), `get_laplace_phase_romeo` and `get_laplace_phase_del` (default). `get_laplace_phase_del` is selected as default as it improves the robustness when imperfect phase values are present  
+`correct_laplacian=true`: subtracts the mean of the Laplacian inside the mask, which avoids edge artefacts in certain cases
 
 ## Rotated Data
 
-This implementation doesn't support data with a oblique angle acquisition yet. For rotated data, it is recommended to use the [QSMxT pipeline](https://qsmxt.github.io/QSMxT/) for susceptibility mapping, which applies TGV internally
+This implementation doesn't support data with an oblique angle acquisition yet. For rotated data, it is recommended to use the [QSMxT pipeline](https://qsmxt.github.io/QSMxT/) for susceptibility mapping, which applies TGV internally
 
 ## Self contained example to test if everything works
 

@@ -106,6 +106,14 @@ mask = trues(sz)
 chi = qsm_tgv(phase, mask, res; TE)
 ```
 
+## Settings to reproduce the original version
+
+[Original Cython code](https://www.neuroimaging.at/pages/qsm.php)
+
+```julia
+qsm = qsm_tgv(phase, mask, res; TE, fieldstrength, laplacian=get_laplace_phase3, step_size=1, iterations=1000, alpha=[0.0015, 0.0005], erosions=5, dedimensionalize=false, correct_laplacian=false)
+```
+
 ## Speed
 
 The parallel CPU version is about twice as fast as the Cython version, the GPU version is about 10x faster than the Cython version (on a RTX 3060 Laptop GPU 6GB)  

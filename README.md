@@ -117,3 +117,26 @@ qsm = qsm_tgv(phase, mask, res; TE, fieldstrength, laplacian=get_laplace_phase3,
 ## Speed
 
 The parallel CPU version is about twice as fast as the Cython version, the GPU version is about 10x faster than the Cython version (on a RTX 3060 Laptop GPU 6GB)  
+
+## Run with other GPU types
+
+Other GPU types should be supported, however are only minimally tested.
+
+```julia
+using AMDGPU
+chi = qsm_tgv(phase, mask, res; TE, fieldstrength, gpu=AMDGPU);
+```
+
+For Intel GPU:
+
+```julia
+using oneAPI
+chi = qsm_tgv(phase, mask, res; TE, fieldstrength, gpu=oneAPI);
+```
+
+For Mac GPU:
+
+```julia
+using Metal
+chi = qsm_tgv(phase, mask, res; TE, fieldstrength, gpu=Metal);
+```

@@ -154,6 +154,33 @@ function reduce_to_mask_box(laplace_phi0, mask)
     return laplace_phi0, mask, box_indices, original_size
 end
 
+function default_backend()
+    if CUDA.functional()
+        return CUDA.CUDAKernels.CUDABackend()
+    else
+        return CPU()
+    end
+end
+
+function select_device(library::Module)
+    if Symbol(library) == :CUDA
+        println("Using the GPU via CUDA")
+        return CUDA.CUDAKernels.CUDABackend(), CUDA.cu
+    elseif Symbol(library) == :AMDGPU
+        println("Using the GPU via AMDGPU")
+        return AMDGPU.ROCKernels.ROCBackend(), AMDGPU.ROCArray
+    elseif Symbol(library) == :oneAPI
+        println("Using the GPU via oneAPI")
+        return oneAPI.oneAPIKernels.oneAPIBackend(), oneAPI.oneArray
+    elseif Symbol(library) == :Metal
+        println("Using the GPU via Metal")
+        return Metal.MetalKernels.MetalBackend(), Metal.MtlArray
+    else
+        println("Using $(Threads.nthreads()) CPU cores")
+        return CPU(), identity
+    end
+end
+
 function select_device(gpu)
     if gpu
         println("Using the GPU")

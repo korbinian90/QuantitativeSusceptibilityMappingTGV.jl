@@ -136,7 +136,7 @@ function set_parameters(alpha, res, B0_dir, cu)
 
     resinv = cu(1 ./ res)
     laplace_kernel = cu(res .^ -2)
-    dipole_kernel = cu((1 / 3 .- B0_dir .^ 2) ./ (res .^ 2))
+    dipole_kernel = cu((1 // 3 .- B0_dir .^ 2) ./ (res .^ 2))
 
     return alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel
 end

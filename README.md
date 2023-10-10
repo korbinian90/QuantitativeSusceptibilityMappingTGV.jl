@@ -140,3 +140,17 @@ For Mac GPU:
 using Metal
 chi = qsm_tgv(phase, mask, res; TE, fieldstrength, gpu=Metal);
 ```
+
+## Masking for QSM
+
+Masking for QSM is a challenge, since including corrupted phase areas can cause global artefacts in the QSM result. See the publications [QSMxT](https://doi.org/10.1002%2Fmrm.29048) and [phase based masking](https://doi.org/10.1002/mrm.29368).
+
+A simple solution is to remove areas based on phase quality using [ROMEO](https://onlinelibrary.wiley.com/doi/10.1002/mrm.28563)
+
+```julia
+using MriResearchTools
+mask_phase = robustmask(romeovoxelquality(phase; mag))
+mask_combined = mask_phase .& mask_brain
+```
+
+The mask might contain holes, and a more sophisticated approach is taken in the [QSMxT toolbox](https://qsmxt.github.io/QSMxT/).

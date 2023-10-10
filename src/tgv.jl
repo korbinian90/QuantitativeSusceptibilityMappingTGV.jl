@@ -35,7 +35,7 @@ function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regula
         ret = nothing
     end
 
-    @showprogress dt=0.5 desc="Running $max_iterations TGV iterations..." for k in 1:max_iterations
+    @showprogress dt=1 desc="Running $max_iterations TGV iterations..." for k in 1:max_iterations
         #############
         # dual update
         KernelAbstractions.synchronize(device)

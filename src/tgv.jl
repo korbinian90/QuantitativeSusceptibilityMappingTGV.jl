@@ -165,16 +165,16 @@ end
 function select_device(library::Module)
     if Symbol(library) == :CUDA
         println("Using the GPU via CUDA")
-        return CUDA.CUDAKernels.CUDABackend(), CUDA.cu
+        return library.CUDAKernels.CUDABackend(), library.cu
     elseif Symbol(library) == :AMDGPU
         println("Using the GPU via AMDGPU")
-        return AMDGPU.ROCKernels.ROCBackend(), AMDGPU.ROCArray
+        return library.ROCKernels.ROCBackend(), library.ROCArray
     elseif Symbol(library) == :oneAPI
         println("Using the GPU via oneAPI")
-        return oneAPI.oneAPIKernels.oneAPIBackend(), oneAPI.oneArray
+        return library.oneAPIKernels.oneAPIBackend(), library.oneArray
     elseif Symbol(library) == :Metal
         println("Using the GPU via Metal")
-        return Metal.MetalKernels.MetalBackend(), Metal.MtlArray
+        return library.MetalKernels.MetalBackend(), library.MtlArray
     else
         println("Using $(Threads.nthreads()) CPU cores")
         return CPU(), identity

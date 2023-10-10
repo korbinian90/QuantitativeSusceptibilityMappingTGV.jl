@@ -96,14 +96,14 @@ This implementation doesn't support data with an oblique angle acquisition yet. 
 ```julia
 using QuantitativeSusceptibilityMappingTGV
 
-sz = (20, 20, 20)
-res = [1, 1, 1]
-TE = 0.01
+sz = (20, 20, 20);
+res = [1, 1, 1];
+TE = 0.01;
 
-phase = randn(sz)
-mask = trues(sz)
+phase = randn(sz);
+mask = trues(sz);
 
-chi = qsm_tgv(phase, mask, res; TE)
+chi = qsm_tgv(phase, mask, res; TE);
 ```
 
 ## Settings to reproduce the original version

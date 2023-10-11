@@ -1,11 +1,6 @@
 function getargs(args::AbstractVector, version)
     if isempty(args)
         args = ["--help"]
-    else
-        if !('-' in args[1]) prepend!(args, Ref("-p")) end # if phase is first without -p
-        if length(args) >= 2 && !("-p" in args || "--phase" in args) && !('-' in args[end-1]) # if phase is last without -p
-            insert!(args, length(args), "-p")
-        end
     end
     s = ArgParseSettings(;
         exc_handler=exception_handler,
@@ -33,6 +28,7 @@ function getargs(args::AbstractVector, version)
             default = 3.0
         "--alpha", "-a"
             help = "The regularization parameter alpha"
+            arg_type = Float64
             default = [0.003, 0.001]
             nargs = 2
         "--iterations", "-n"
@@ -43,6 +39,9 @@ function getargs(args::AbstractVector, version)
             help = "The number of erosions"
             arg_type = Int
             default = 3
+        "--gpu", "-g"
+            help = "Use GPU for computation"
+            default = :auto
         "--mask", "-k"
             help = """nomask | qualitymask <threshold> | robustmask | <mask_file>.
                 <threshold>=0.1 for qualitymask in [0;1]"""

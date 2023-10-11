@@ -88,9 +88,9 @@ end
     Aqua.test_all(QuantitativeSusceptibilityMappingTGV; ambiguities=false)
 end
 
-@testitem "TGV_QSM command line tests" begin
+@testitem "QuantitativeSusceptibilityMappingTGV command line tests" begin
     if VERSION ≥ v"1.9"
         using ArgParse, MriResearchTools
-        include("TGV_QSMApp/command_line.jl")
+        include("QuantitativeSusceptibilityMappingTGVApp/command_line.jl")
     end
 end

@@ -1,8 +1,8 @@
-module TGV_QSMApp
+module QuantitativeSusceptibilityMappingTGVApp
 
 using ArgParse
 using MriResearchTools
-using TGV_QSM
+using QuantitativeSusceptibilityMappingTGV
 
 include("argparse.jl")
 include("caller.jl")

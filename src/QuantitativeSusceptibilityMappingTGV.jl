@@ -6,8 +6,8 @@ include("tgv.jl")
 include("tgv_helper.jl")
 include("laplacian.jl")
 
-TGV_QSM_main(args...; kwargs...) = @warn("Type `using ArgParse, MriResearchTools` to use this function \n `TGV_QSM_main([\"--help\"])` for argument help")
+QuantitativeSusceptibilityMappingTGV_main(args...; kwargs...) = @warn("Type `using ArgParse, MriResearchTools` to use this function \n `QuantitativeSusceptibilityMappingTGV_main([\"--help\"])` for argument help")
 
-export qsm_tgv, get_laplace_phase3, get_laplace_phase_del, get_laplace_phase_romeo, TGV_QSM_main
+export qsm_tgv, get_laplace_phase3, get_laplace_phase_del, get_laplace_phase_romeo, QuantitativeSusceptibilityMappingTGV_main
 
 end

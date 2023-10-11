@@ -24,7 +24,7 @@ ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 MriResearchTools = "557dad86-b9bd-4533-8525-1a39684d020f"
 
 [extensions]
-TGV_QSMApp = ["MriResearchTools", "ArgParse"]
+QuantitativeSusceptibilityMappingTGVApp = ["MriResearchTools", "ArgParse"]
 
 [compat]
 ArgParse = "1"

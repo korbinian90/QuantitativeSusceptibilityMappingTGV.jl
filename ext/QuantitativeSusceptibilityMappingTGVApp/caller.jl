@@ -1,4 +1,4 @@
-function TGV_QSM.TGV_QSM_main(args; version="App 1.0")
+function QuantitativeSusceptibilityMappingTGV.QuantitativeSusceptibilityMappingTGV_main(args; version="App 1.0")
     settings = getargs(args, version)
     if isnothing(settings)
         return 1

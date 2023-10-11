@@ -172,6 +172,6 @@ function saveconfiguration(writedir, settings, args, version)
             end
         end
         println(io, """Arguments: $(join(args, " "))""")
-        println(io, "TGV_QSMApp version: $version")
+        println(io, "QuantitativeSusceptibilityMappingTGVApp version: $version")
     end
 end

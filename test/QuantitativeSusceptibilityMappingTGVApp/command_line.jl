@@ -98,93 +98,85 @@ end
 
 test_tgv_qsm(["-p", phasefile_me_nan, "-t", "[2,4]", "-k", "nomask"])
 
-# ## Test error and warning messages
-# m = "multi-echo data is used, but no echo times are given. Please specify the echo times using the -t option."
-# @test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-o", tmpdir, "-v"])
+## Test error and warning messages
+m = "multi-echo data is used, but no echo times are given. Please specify the echo times using the -t option."
+@test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-o", tmpdir, "-v"])
 
-# m = "masking option '0.8' is undefined (Maybe '-k qualitymask 0.8' was meant?)"
-# @test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_1eco, "-o", tmpdir, "-v", "-k", "0.8"])
+m = "masking option '0.8' is undefined (Maybe '-k qualitymask 0.8' was meant?)"
+@test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_1eco, "-o", tmpdir, "-v", "-k", "0.8"])
 
-# m = "masking option 'blub' is undefined"
-# @test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_1eco, "-o", tmpdir, "-v", "-k", "blub"])
+m = "masking option 'blub' is undefined"
+@test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_1eco, "-o", tmpdir, "-v", "-k", "blub"])
 
-# m = "Phase offset determination requires all echo times! (2 given, 3 required)"
-# @test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me_5D, "-o", tmpdir, "-v", "-t", "[1,2]", "-e", "[1,2]", "--phase-offset-correction"])
+m = "Phase offset determination requires all echo times! (2 given, 3 required)"
+@test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me_5D, "-o", tmpdir, "-v", "-t", "[1,2]", "-e", "[1,2]", "--phase-offset-correction"])
 
-# m = "echoes=[1,5]: specified echo out of range! Number of echoes is 3"
-# @test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-o", tmpdir, "-v", "-t", "[1,2,3]", "-e", "[1,5]"])
+m = "echoes=[1,5]: specified echo out of range! Number of echoes is 3"
+@test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-o", tmpdir, "-v", "-t", "[1,2,3]", "-e", "[1,5]"])
 
-# m = "echoes=[1,5} wrongly formatted!"
-# @test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-o", tmpdir, "-v", "-t", "[1,2,3]", "-e", "[1,5}"])
+m = "echoes=[1,5} wrongly formatted!"
+@test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-o", tmpdir, "-v", "-t", "[1,2,3]", "-e", "[1,5}"])
 
-# m = "Number of chosen echoes is 2 (3 in .nii data), but 5 TEs were specified!"
-# @test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-o", tmpdir, "-v", "-t", "[1,2,3,4,5]", "-e", "[1,2]"])
+m = "Number of chosen echoes is 2 (3 in .nii data), but 5 TEs were specified!"
+@test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-o", tmpdir, "-v", "-t", "[1,2,3,4,5]", "-e", "[1,2]"])
 
-# m = "size of magnitude and phase does not match!"
-# @test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-o", tmpdir, "-v", "-t", "[1,2,3]", "-m", magfile_1eco])
+m = "size of magnitude and phase does not match!"
+@test_throws ErrorException(m) QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-o", tmpdir, "-v", "-t", "[1,2,3]", "-m", magfile_1eco])
 
-# m = "robustmask was chosen but no magnitude is available. No mask is used!"
-# @test_logs (:warn, m) match_mode = :any QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_1eco, "-o", tmpdir])
+m = "robustmask was chosen but no magnitude is available. No mask is used!"
+@test_logs (:warn, m) match_mode = :any QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_1eco, "-o", tmpdir])
 
-# m = "The echo times 1 and 2 ([1.1, 1.1, 1.1]) need to be different for MCPC-3D-S phase offset correction! No phase offset correction performed"
-# @test_logs (:warn, m) match_mode = :any QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-m", magfile_me, "-o", tmpdir, "-t", "[1.1, 1.1, 1.1]", "--phase-offset-correction"])
+m = "The echo times 1 and 2 ([1.1, 1.1, 1.1]) need to be different for MCPC-3D-S phase offset correction! No phase offset correction performed"
+@test_logs (:warn, m) match_mode = :any QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-m", magfile_me, "-o", tmpdir, "-t", "[1.1, 1.1, 1.1]", "--phase-offset-correction"])
 
-# @test_logs QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_1eco, "-o", tmpdir, "-m", magfile_1eco]) # test that no warning appears
+@test_logs QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_1eco, "-o", tmpdir, "-m", magfile_1eco]) # test that no warning appears
 
-# ## test maskfile
-# QuantitativeSusceptibilityMappingTGV_main([phasefile_1eco, "-k", maskfile])
+## test maskfile
+test_tgv_qsm(["-p", phasefile_1eco, "-k", maskfile])
 
-# ## test no-rescale
-# phasefile_me_uw = joinpath(tempname(), "qsm.nii")
-# phasefile_me_uw_wrong = joinpath(tempname(), "wrong_qsm.nii")
-# phasefile_me_uw_again = joinpath(tempname(), "again_qsm.nii")
-# QuantitativeSusceptibilityMappingTGV_main([phasefile_me, "-o", phasefile_me_uw, "-t", "[2,4,6]"])
-# QuantitativeSusceptibilityMappingTGV_main([phasefile_me_uw, "-o", phasefile_me_uw_wrong, "-t", "[2,4,6]"])
-# QuantitativeSusceptibilityMappingTGV_main([phasefile_me_uw, "-o", phasefile_me_uw_again, "-t", "[2,4,6]", "--no-rescale"])
+## test TGV_QSM output files
+println("test TGV_QSM output files")
+testpath = joinpath(tmpdir, "test_name_1")
+QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_1eco, "-o", testpath])
+@test isfile(joinpath(testpath, "qsm.nii"))
 
-# @test readphase(phasefile_me_uw_again; rescale=false).raw == readphase(phasefile_me_uw; rescale=false).raw
-# @test readphase(phasefile_me_uw_wrong; rescale=false).raw != readphase(phasefile_me_uw; rescale=false).raw
+testpath = joinpath(tmpdir, "test_name_2")
+fn = joinpath(testpath, "unwrap_name.nii")
+QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_1eco, "-o", fn])
+@test isfile(fn)
 
-# ## test ROMEO output files
-# testpath = joinpath(tmpdir, "test_name_1")
-# QuantitativeSusceptibilityMappingTGV_main([phasefile_1eco, "-o", testpath])
-# @test isfile(joinpath(testpath, "qsm.nii"))
+testpath = joinpath(tmpdir, "test_name_2")
+gz_fn = joinpath(testpath, "unwrap_name.nii.gz")
+QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_1eco, "-o", gz_fn])
+@test isfile(gz_fn)
 
-# testpath = joinpath(tmpdir, "test_name_2")
-# fn = joinpath(testpath, "unwrap_name.nii")
-# QuantitativeSusceptibilityMappingTGV_main([phasefile_1eco, "-o", fn])
-# @test isfile(fn)
+## test .gz input file
+println("test .gz input file")
+QuantitativeSusceptibilityMappingTGV_main(["-p", gz_fn, "-o", joinpath(testpath, "gz_read_test.nii")])
+QuantitativeSusceptibilityMappingTGV_main(["-p", gz_fn, "-m", gz_fn, "-o", joinpath(testpath, "gz_read_test.nii")])
 
-# testpath = joinpath(tmpdir, "test_name_2")
-# gz_fn = joinpath(testpath, "unwrap_name.nii.gz")
-# QuantitativeSusceptibilityMappingTGV_main([phasefile_1eco, "-o", gz_fn])
-# @test isfile(gz_fn)
+## test mcpc3ds output files
+println("test mcpc3ds output files")
+testpath = joinpath(tmpdir, "test5d")
+QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me_5D, "-o", testpath, "-m", magfile_5D, "-t", "[2,4,6]", "-s"])
+@test isfile(joinpath(testpath, "combined_mag.nii"))
+@test isfile(joinpath(testpath, "combined_phase.nii"))
 
-# ## test .gz input file
-# QuantitativeSusceptibilityMappingTGV_main([gz_fn, "-o", joinpath(testpath, "gz_read_test.nii")])
-# QuantitativeSusceptibilityMappingTGV_main([gz_fn, "-m", gz_fn, "-o", joinpath(testpath, "gz_read_test.nii")])
+testpath = joinpath(tmpdir, "test4d")
+QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-o", testpath, "-m", magfile_me, "-t", "[2,4,6]", "--phase-offset-correction", "-s"])
+@test isfile(joinpath(testpath, "corrected_phase.nii"))
 
+## test B0 output files
+println("test B0 output files")
+testpath = joinpath(tmpdir, "testB0_1")
+QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-o", testpath, "-m", magfile_me, "-t", "[2,4,6]", "-B"])
+@test isfile(joinpath(testpath, "B0.nii"))
 
-# ## test mcpc3ds output files
-# testpath = joinpath(tmpdir, "test5d")
-# QuantitativeSusceptibilityMappingTGV_main([phasefile_me_5D, "-o", testpath, "-m", magfile_5D, "-t", "[2,4,6]", "-s"])
-# @test isfile(joinpath(testpath, "combined_mag.nii"))
-# @test isfile(joinpath(testpath, "combined_phase.nii"))
+testpath = joinpath(tmpdir, "testB0_2")
+name = "B0_output"
+QuantitativeSusceptibilityMappingTGV_main(["-p", phasefile_me, "-o", testpath, "-m", magfile_me, "-t", "[2,4,6]", "-B", name])
+@test isfile(joinpath(testpath, "$name.nii"))
 
-# testpath = joinpath(tmpdir, "test4d")
-# QuantitativeSusceptibilityMappingTGV_main([phasefile_me, "-o", testpath, "-m", magfile_me, "-t", "[2,4,6]", "--phase-offset-correction", "-s"])
-# @test isfile(joinpath(testpath, "corrected_phase.nii"))
-
-# ## test B0 output files
-# testpath = joinpath(tmpdir, "testB0_1")
-# QuantitativeSusceptibilityMappingTGV_main([phasefile_me, "-o", testpath, "-m", magfile_me, "-t", "[2,4,6]", "-B"])
-# @test isfile(joinpath(testpath, "B0.nii"))
-
-# testpath = joinpath(tmpdir, "testB0_2")
-# name = "B0_output"
-# QuantitativeSusceptibilityMappingTGV_main([phasefile_me, "-o", testpath, "-m", magfile_me, "-t", "[2,4,6]", "-B", name])
-# @test isfile(joinpath(testpath, "$name.nii"))
-
-# cd(original_path)
-# GC.gc()
-# rm(tmpdir, recursive=true)
+cd(original_path)
+GC.gc()
+rm(tmpdir, recursive=true)

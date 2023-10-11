@@ -91,6 +91,6 @@ end
 @testitem "TGV_QSM command line tests" begin
     if VERSION ≥ v"1.9"
         using ArgParse, MriResearchTools
-        # include("TGV_QSMApp/command_line.jl")
+        include("TGV_QSMApp/command_line.jl")
     end
 end

@@ -16,10 +16,10 @@ function getargs(args::AbstractVector, version)
         "--phase", "-p"
             help = "The phase image that should be unwrapped"
         "--magnitude", "-m"
-            help = "The magnitude image (better unwrapping if specified)"
+            help = "The magnitude image (better unwrapping and B0 estimation if specified)"
         "--output", "-o"
             help = "The output path or filename"
-            default = "unwrapped.nii"
+            default = "qsm.nii"
         "--echo-times", "-t"
             help = """The echo times in [ms] required for temporal unwrapping 
                 specified in array or range syntax (eg. "[1.5,3.0]" or 
@@ -27,27 +27,31 @@ function getargs(args::AbstractVector, version)
                 used with the possibility to specify the echo time as
                 e.g. "-t epi 5.3" (for B0 calculation)."""
             nargs = '+'
+        "--fieldstrength", "-f"
+            help = "The field strength in [T]"
+            arg_type = Float64
+            default = 3.0
+        "--alpha", "-a"
+            help = "The regularization parameter alpha"
+            default = [0.003, 0.001]
+            nargs = 2
+        "--iterations", "-n"
+            help = "The number of iterations"
+            arg_type = Int
+            default = 2000
+        "--erosions", "-r"
+            help = "The number of erosions"
+            arg_type = Int
+            default = 3
         "--mask", "-k"
             help = """nomask | qualitymask <threshold> | robustmask | <mask_file>.
                 <threshold>=0.1 for qualitymask in [0;1]"""
             default = ["robustmask"]
             nargs = '+'
-        "--mask-unwrapped", "-u"
-            help = """Apply the mask on the unwrapped result. If mask is 
-                "nomask", sets it to "robustmask"."""
-            action = :store_true
-        "--unwrap-echoes", "-e"
+        "--echoes", "-e"
             help = "Load only the specified echoes from disk"
             default = [":"]
             nargs = '+'
-        "--weights", "-w"
-            help = """romeo | romeo2 | romeo3 | romeo4 | romeo6 |
-                bestpath | <4d-weights-file> | <flags>.
-                <flags> are up to 6 bits to activate individual weights
-                (eg. "1010"). The weights are (1)phasecoherence
-                (2)phasegradientcoherence (3)phaselinearity (4)magcoherence
-                (5)magweight (6)magweight2"""
-            default = "romeo"
         "--compute-B0", "-B"
             help = """Calculate combined B0 map in [Hz].
                 Supports the B0 output filename as optional input.
@@ -71,9 +75,6 @@ function getargs(args::AbstractVector, version)
                 file to obtain a smoothing size in voxels. A value of [0,0,0]
                 deactivates phase offset smoothing (not recommended)."""
             nargs = '+'
-        "--write-phase-offsets"
-            help = "Saves the estimated phase offsets to the output folder"
-            action = :store_true
         "--individual-unwrapping", "-i"
             help = """Unwraps the echoes individually (not temporal).
                 This might be necessary if there is large movement
@@ -101,46 +102,12 @@ function getargs(args::AbstractVector, version)
                 and sets exceeding values to 0"""
             arg_type = Float64
             default = Inf
+        "--save-steps", "-s"
+            help = """Save intermediate results to the output folder.
+                This is useful for debugging."""
+            action = :store_true
         "--verbose", "-v"
             help = "verbose output messages"
-            action = :store_true
-        "--correct-global", "-g"
-            help = """Phase is corrected to remove global n2π phase offset. The
-                median of phase values (inside mask if given) is used to
-                calculate the correction term"""
-            action = :store_true
-        "--write-quality", "-q"
-            help = """Writes out the ROMEO quality map as a 3D image with one
-                value per voxel"""
-            action = :store_true
-        "--write-quality-all", "-Q"
-            help = """Writes out an individual quality map for each of the
-                ROMEO weights."""
-            action = :store_true
-        "--max-seeds", "-s"
-            help = """EXPERIMENTAL! Sets the maximum number of seeds for
-                unwrapping. Higher values allow more seperated regions."""
-            arg_type = Int
-            default = 1
-        "--merge-regions"
-            help = """EXPERIMENTAL! Spatially merges neighboring regions after
-                unwrapping."""
-            action = :store_true
-        "--correct-regions"
-            help = """EXPERIMENTAL! Performed after merging. Brings the median
-                of each region closest to 0 (mod 2π)."""
-            action = :store_true
-        "--wrap-addition"
-            help = """[0;π] EXPERIMENTAL! Usually the true phase difference of
-                neighboring voxels cannot exceed π to be able to unwrap
-                them. This setting increases the limit and uses 'linear
-                unwrapping' of 3 voxels in a line. Neighbors can have
-                (π + wrap-addition) phase difference."""
-            arg_type = Float64
-            default = 0.0
-        "--temporal-uncertain-unwrapping"
-            help = """EXPERIMENTAL! Uses spatial unwrapping on voxels that have
-                high uncertainty values after temporal unwrapping."""
             action = :store_true
 
     end
@@ -157,7 +124,7 @@ function exception_handler(settings::ArgParseSettings, err, err_code::Int=1)
 end
 
 function getechoes(settings, neco)
-    echoes = eval(Meta.parse(join(settings["unwrap-echoes"], " ")))
+    echoes = eval(Meta.parse(join(settings["echoes"], " ")))
     if echoes isa Int
         echoes = [echoes]
     elseif echoes isa Matrix
@@ -197,31 +164,15 @@ function get_phase_offset_smoothing_sigma(settings)
     return eval(Meta.parse(join(settings["phase-offset-smoothing-sigma-mm"], " ")))[:]
 end
 
-function parseweights(settings)
-    if isfile(settings["weights"]) && splitext(settings["weights"])[2] != ""
-        return UInt8.(niread(settings["weights"]))
-    else
-        try
-            reform = "Bool[$(join(collect(settings["weights"]), ','))]"
-            flags = falses(6)
-            flags_tmp = eval(Meta.parse(reform))
-            flags[1:length(flags_tmp)] = flags_tmp 
-            return flags
-        catch
-            return Symbol(settings["weights"])
-        end
-    end
-end
-
 function saveconfiguration(writedir, settings, args, version)
     writedir = abspath(writedir)
-    open(joinpath(writedir, "settings_romeo.txt"), "w") do io
+    open(joinpath(writedir, "settings_tgv_qsm.txt"), "w") do io
         for (fname, val) in settings
             if !(val isa AbstractArray || fname == "header")
                 println(io, "$fname: " * string(val))
             end
         end
         println(io, """Arguments: $(join(args, " "))""")
-        println(io, "RomeoApp version: $version")
+        println(io, "TGV_QSMApp version: $version")
     end
 end

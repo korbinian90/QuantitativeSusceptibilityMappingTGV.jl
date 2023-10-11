@@ -19,6 +19,13 @@ Rotations = "6038ab10-8711-5258-84ad-4b1120ba62dc"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
+[weakdeps]
+ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
+MriResearchTools = "557dad86-b9bd-4533-8525-1a39684d020f"
+
+[extensions]
+TGV_QSMApp = ["MriResearchTools", "ArgParse"]
+
 [compat]
 ArgParse = "1"
 CUDA = "4,5"
@@ -34,10 +41,3 @@ ROMEO = "1.0"
 Rotations = "1.5"
 StaticArrays = "1.6"
 julia = "1.7"
-
-[extensions]
-TGV_QSMApp = ["MriResearchTools", "ArgParse"]
-
-[weakdeps]
-ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
-MriResearchTools = "557dad86-b9bd-4533-8525-1a39684d020f"

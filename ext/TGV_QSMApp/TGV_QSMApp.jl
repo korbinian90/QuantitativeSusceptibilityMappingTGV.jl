@@ -1,4 +1,4 @@
-module RomeoApp
+module TGV_QSMApp
 
 using ArgParse
 using MriResearchTools

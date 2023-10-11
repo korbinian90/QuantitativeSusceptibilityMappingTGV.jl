@@ -4,11 +4,13 @@ authors = ["Korbinian Eckstein korbinian90@gmail.com"]
 version = "0.2.0"
 
 [deps]
+ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 ImageFiltering = "6a3955dd-da59-5b1f-98d4-e7296123deb5"
 ImageMorphology = "787d08f9-d448-5407-9aad-5290dd7ab264"
 Interpolations = "a98d9a8b-a2ab-59e6-89dd-64a1c18fca59"
 KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+MriResearchTools = "557dad86-b9bd-4533-8525-1a39684d020f"
 OffsetArrays = "6fe1bfb0-de20-5000-8ca7-80f57d26f881"
 PaddedViews = "5432bcbf-9aad-5242-b902-cca2824c8663"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
@@ -18,11 +20,13 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [compat]
+ArgParse = "1"
 CUDA = "4,5"
 ImageFiltering = "0.7"
 ImageMorphology = "0.4"
 Interpolations = "0.14"
 KernelAbstractions = "0.9"
+MriResearchTools = "3"
 OffsetArrays = "1.12"
 PaddedViews = "0.5.12"
 ProgressMeter = "1.7"
@@ -30,3 +34,10 @@ ROMEO = "1.0"
 Rotations = "1.5"
 StaticArrays = "1.6"
 julia = "1.7"
+
+[extensions]
+TGV_QSMApp = ["MriResearchTools", "ArgParse"]
+
+[weakdeps]
+ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
+MriResearchTools = "557dad86-b9bd-4533-8525-1a39684d020f"

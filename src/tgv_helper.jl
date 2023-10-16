@@ -4,7 +4,8 @@
     R = @ndrange
 
     laplace = filter_local((I, R), phi, laplace_kernel)
-    wave = filter_local((I, R), chi, dipole_kernel)
+    # wave = filter_local((I, R), chi, dipole_kernel)
+    wave = wave_local((I, R), chi, dipole_kernel)
 
     @inbounds eta[I] += sigma * mask[I] * (-laplace + wave - laplace_phi0[I])
 end
@@ -79,7 +80,8 @@ end
     R = @ndrange
 
     div = div_local((I, R), p, resinv, mask0)
-    wave = filter_local((I, R), v, dipole_kernel, mask0)
+    # wave = filter_local((I, R), v, dipole_kernel, mask0)
+    wave = wave_local((I, R), v, dipole_kernel, mask0)
 
     @inbounds chi_dest[I] = chi[I] + tau * (div - wave)
 end
@@ -129,6 +131,48 @@ end
         end
     end
     return A0, A1m, A1p, A2m, A2p, A3m, A3p
+end
+
+@inline function stencil27((I, (x, y, z)), A, mask)
+    i, j, k = Tuple(I)
+    if i > 1 && j > 1 && k > 1 && i < x && j < y && k < z
+        if isnothing(mask)
+            return Tuple(A[i+di, j+dj, k+dk] for di in -1:1, dj in -1:1, dk in -1:1)
+        else
+            return Tuple(mask[i+di, j+dj, k+dk] * A[i+di, j+dj, k+dk] for di in -1:1, dj in -1:1, dk in -1:1)
+        end
+    end
+    # if isnothing(mask)
+    #     A1m = (i > 1) ? A[i-1, j, k] : A0
+    #     A1p = (i < x) ? A[i+1, j, k] : A0
+    #     A2m = (j > 1) ? A[i, j-1, k] : A0
+    #     A2p = (j < y) ? A[i, j+1, k] : A0
+    #     A3m = (k > 1) ? A[i, j, k-1] : A0
+    #     A3p = (k < z) ? A[i, j, k+1] : A0
+    # else # TODO test to switch mask to && (also in div_local)
+    #     A1m = (i > 1) ? mask[i-1, j, k] * A[i-1, j, k] : A0
+    #     A1p = (i < x) ? mask[i+1, j, k] * A[i+1, j, k] : A0
+    #     A2m = (j > 1) ? mask[i, j-1, k] * A[i, j-1, k] : A0
+    #     A2p = (j < y) ? mask[i, j+1, k] * A[i, j+1, k] : A0
+    #     A3m = (k > 1) ? mask[i, j, k-1] * A[i, j, k-1] : A0
+    #     A3p = (k < z) ? mask[i, j, k+1] * A[i, j, k+1] : A0
+    # end
+    # return A0, A1m, A1p, A2m, A2p, A3m, A3p
+end
+
+function wave_local((I, (x, y, z)), A::AbstractArray{T}, kernel, mask=nothing) where {T}
+    i, j, k = Tuple(I)
+    res = zero(T)
+    if i > 1 && j > 1 && k > 1 && i < x && j < y && k < z
+        for di in -1:1, dj in -1:1, dk in -1:1
+            if isnothing(mask)
+                res += A[i+di, j+dj, k+dk] * kernel[di+2, dj+2, dk+2]
+            else
+                res += mask[i+di, j+dj, k+dk] * A[i+di, j+dj, k+dk] * kernel[di+2, dj+2, dk+2]
+            end
+        end
+    end
+    return res
 end
 
 @inline function filter_local(I, A, w, mask=nothing)

@@ -10,7 +10,7 @@
 end
 
 # Update p <- P_{||.||_\infty <= alpha}(p + sigma*(mask0*grad(phi_f) - mask*w). 
-@kernel function update_p_kernel!(p, chi, w, mask, mask0, sigma, alphainv, resinv)
+@kernel function update_p_kernel!(p, chi, w, tensor, mask, mask0, sigma, alphainv, resinv)
     I = @index(Global, Cartesian)
     R = @ndrange
 
@@ -20,9 +20,12 @@ end
         sigmaw0 = sigma * mask0[I]
         sigmaw = sigma * mask[I]
 
-        p[1, I] += sigmaw0 * dxp - sigmaw * w[1, I]
-        p[2, I] += sigmaw0 * dyp - sigmaw * w[2, I]
-        p[3, I] += sigmaw0 * dzp - sigmaw * w[3, I]
+        grad_minus_w = sigmaw0 .* (dxp, dyp, dzp) .- sigmaw .* (w[1, I], w[2, I], w[3, I])
+        grad_minus_w = apply_tensor(grad_minus_w, tensor, I)
+
+        p[1, I] += grad_minus_w[1]
+        p[2, I] += grad_minus_w[2]
+        p[3, I] += grad_minus_w[3]
 
         pabs = norm((p[it, I] for it in 1:3)) * alphainv
         if pabs > 1
@@ -74,18 +77,18 @@ end
 end
 
 # Update chi_dest <- chi + tau*(div(p) - wave(mask*v)). 
-@kernel function update_chi_kernel!(chi_dest, chi, v, p, mask0, tau, resinv, dipole_kernel)
+@kernel function update_chi_kernel!(chi_dest, chi, v, p, tensor, mask0, tau, resinv, dipole_kernel)
     I = @index(Global, Cartesian)
     R = @ndrange
 
-    div = div_local((I, R), p, resinv, mask0)
+    div = div_local_tensor((I, R), p, resinv, mask0, tensor)
     wave = filter_local((I, R), v, dipole_kernel, mask0)
 
     @inbounds chi_dest[I] = chi[I] + tau * (div - wave)
 end
 
 # Update w_dest <- w + tau*(mask*p + div(mask0*q)). 
-@kernel function update_w_kernel!(w_dest, w, p, q, mask, mask0, tau, (r1, r2, r3))
+@kernel function update_w_kernel!(w_dest, w, p, q, tensor, mask, mask0, tau, (r1, r2, r3))
     I = @index(Global, Cartesian)
     R = @ndrange
 
@@ -97,9 +100,10 @@ end
             q123 = div_local((I, R), q, (r1, r1, r1), mask0, (1, 2, 3))
             q245 = div_local((I, R), q, (r2, r2, r2), mask0, (2, 4, 5))
             q356 = div_local((I, R), q, (r3, r3, r3), mask0, (3, 5, 6))
-            w_dest[1, I] += tau * (p[1, I] + q123)
-            w_dest[2, I] += tau * (p[2, I] + q245)
-            w_dest[3, I] += tau * (p[3, I] + q356)
+            (px, py, pz) = apply_tensor((p[1, I], p[2, I], p[3, I]), tensor, I)
+            w_dest[1, I] += tau * (px + q123)
+            w_dest[2, I] += tau * (py + q245)
+            w_dest[3, I] += tau * (pz + q356)
         end
     end
 end
@@ -154,6 +158,33 @@ end
     return div
 end
 
+@inline function div_local_tensor((I, (x, y, z)), A::AbstractArray{T}, (r1, r2, r3), mask, tensor) where {T}
+    @inbounds begin
+        div = mask[I] * tensor_sum(A, tensor, (1, 2, 3), I) * r1
+        ind = I - CartesianIndex(1, 0, 0)
+        if I[1] > 1 && mask[ind]
+            div -= tensor_sum(A, tensor, (1, 2, 3), ind)
+        end
+
+        div += mask[I] * tensor_sum(A, tensor, (2, 4, 5), I) * r2
+        ind = I - CartesianIndex(0, 1, 0)
+        if I[2] > 1 && mask[ind]
+            div -= tensor_sum(A, tensor, (2, 4, 5), ind)
+        end
+
+        div += mask[I] * tensor_sum(A, tensor, (3, 5, 6), I) * r3
+        ind = I - CartesianIndex(0, 0, 1)
+        if I[3] > 1 && mask[ind]
+            div -= tensor_sum(A, tensor, (3, 5, 6), ind)
+        end
+    end
+    return div
+end
+
+@inline function tensor_sum(A, t, (i, j, k), I)
+    sum((t[i, I], t[j, I], t[k, I]) .* (A[1, I], A[2, I], A[3, I]))
+end
+
 function symgrad_local((I, (x, y, z)), A::AbstractArray{T}, (r1, r2, r3)) where {T}
     i, j, k = Tuple(I)
     A1, A2, A3 = A[1, I], A[2, I], A[3, I]
@@ -195,4 +226,11 @@ end
     dy = (j < y) ? (A[i, j+1, k] - A0) * resinv[2] : zero(T)
     dz = (k < z) ? (A[i, j, k+1] - A0) * resinv[3] : zero(T)
     return dx, dy, dz
+end
+
+@inline function apply_tensor(x, t, I)
+    t123 = (t[1, I], t[2, I], t[3, I])
+    t245 = (t[2, I], t[4, I], t[5, I])
+    t356 = (t[3, I], t[5, I], t[6, I])
+    return sum(t123 .* x), sum(t245 .* x), sum(t356 .* x)
 end

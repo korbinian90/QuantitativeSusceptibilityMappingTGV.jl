@@ -1,12 +1,13 @@
-function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=CUDA.functional(), nblocks=32)
+function qsm_tgv(phase, mask, res; TE, mag=nothing, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=CUDA.functional(), nblocks=32)
     device, cu = select_device(gpu)
-    phase, res, alpha, fieldstrength, mask = adjust_types(type, phase, res, alpha, fieldstrength, mask)
+    phase, mag, mask, res, alpha, fieldstrength = adjust_types(type, phase, mag, mask, res, alpha, fieldstrength)
 
+    mask_orig = copy(mask)
     for _ in 1:erosions
         mask = erode_mask(mask)
     end
 
-    phase, mask, box_indices, original_size = reduce_to_mask_box(phase, mask)
+    phase, mag, mask, mask_orig, box_indices, original_size = reduce_to_mask_box(phase, mag, mask, mask_orig)
 
     mask0 = erode_mask(mask) # one additional erosion in mask0
     laplace_phi0 = laplacian(phase, res)
@@ -21,7 +22,9 @@ function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regula
 
     alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel = set_parameters(alpha, res, B0_dir, cu)
 
-    laplace_phi0, mask, mask0 = cu(laplace_phi0), cu(mask), cu(mask0) # send to device
+    tensor = structure_tensor(mag, mask_orig, mask, sigma)
+
+    laplace_phi0, tensor, mask, mask0 = cu(laplace_phi0), cu(tensor), cu(mask), cu(mask0) # send to device
 
     chi, chi_, w, w_, phi, phi_, eta, p, q = initialize_device_variables(type, size(laplace_phi0), cu)
 
@@ -40,7 +43,7 @@ function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regula
         # dual update
         KernelAbstractions.synchronize(device)
         update_eta_kernel!(device, nblocks)(eta, phi_, chi_, laplace_phi0, mask0, sigma, laplace_kernel, dipole_kernel; ndrange)
-        update_p_kernel!(device, nblocks)(p, chi_, w_, mask, mask0, sigma * step_size, alphainv[2], resinv; ndrange)
+        update_p_kernel!(device, nblocks)(p, chi_, w_, tensor, mask, mask0, sigma * step_size, alphainv[2], resinv; ndrange)
         update_q_kernel!(device, nblocks)(q, w_, mask0, sigma * step_size, alphainv[1], resinv; ndrange)
 
         #######################
@@ -53,8 +56,8 @@ function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regula
         # primal update
         KernelAbstractions.synchronize(device)
         update_phi_kernel!(device, nblocks)(phi, phi_, eta, mask, mask0, tau, laplace_kernel; ndrange)
-        update_chi_kernel!(device, nblocks)(chi, chi_, eta, p, mask0, tau * step_size, resinv, dipole_kernel; ndrange)
-        update_w_kernel!(device, nblocks)(w, w_, p, q, mask, mask0, tau * step_size, resinv; ndrange)
+        update_chi_kernel!(device, nblocks)(chi, chi_, eta, p, tensor, mask0, tau * step_size, resinv, dipole_kernel; ndrange)
+        update_w_kernel!(device, nblocks)(w, w_, p, q, tensor, mask, mask0, tau * step_size, resinv; ndrange)
 
         #####################
         # extragradient update
@@ -141,17 +144,20 @@ function set_parameters(alpha, res, B0_dir, cu)
     return alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel
 end
 
-function adjust_types(type, laplace_phi_0, res, alpha, fieldstrength, mask)
-    type.(laplace_phi_0), collect(type.(abs.(res))), collect(type.(alpha)), type(fieldstrength), mask .!= 0
+function adjust_types(type, phase, mag, mask, res, alpha, fieldstrength)
+    adjusted_mag = isnothing(mag) ? nothing : type.(mag)
+    type.(phase), adjusted_mag, mask .!= 0, collect(type.(abs.(res))), collect(type.(alpha)), type(fieldstrength)
 end
 
-function reduce_to_mask_box(laplace_phi0, mask)
-    original_size = size(laplace_phi0)
+function reduce_to_mask_box(phase, mag, mask, mask_orig)
+    original_size = size(phase)
     box_indices = mask_box_indices(mask)
-    laplace_phi0 = view(laplace_phi0, box_indices...)
+    phase = view(phase, box_indices...)
+    mag = isnothing(mag) ? nothing : view(mag, box_indices...)
     mask = view(mask, box_indices...)
+    mask_orig = view(mask_orig, box_indices...)
 
-    return laplace_phi0, mask, box_indices, original_size
+    return phase, mag, mask, mask_orig, box_indices, original_size
 end
 
 function default_backend()

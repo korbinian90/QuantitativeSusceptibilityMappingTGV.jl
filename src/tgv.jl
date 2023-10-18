@@ -1,3 +1,12 @@
+"""
+qsm_tgv(phase, mask, res; TE, kwargs...)
+
+Optional arguments:
+
+Example:
+    chi = qsm_tgv(randn(20,20,20), trues(20,20,20), [1,1,2]; TE=0.025, fieldstrength=3)
+
+"""
 function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=CUDA.functional(), nblocks=32)
     device, cu = select_device(gpu)
     phase, res, alpha, fieldstrength, mask = adjust_types(type, phase, res, alpha, fieldstrength, mask)
@@ -176,7 +185,7 @@ function select_device(library::Module)
         println("Using the GPU via Metal")
         return library.MetalKernels.MetalBackend(), library.MtlArray
     else
-        println("Using $(Threads.nthreads()) CPU cores")
+        println("Using $(Threads.nthreads()) CPU threads")
         return CPU(), identity
     end
 end
@@ -186,7 +195,7 @@ function select_device(gpu)
         println("Using the GPU")
         return CUDA.CUDAKernels.CUDABackend(), CUDA.cu
     else
-        println("Using $(Threads.nthreads()) CPU cores")
+        println("Using $(Threads.nthreads()) CPU threads")
         return CPU(), identity
     end
 end

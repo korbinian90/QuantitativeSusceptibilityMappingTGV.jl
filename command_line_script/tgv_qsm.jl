@@ -12,6 +12,9 @@ catch
     using QuantitativeSusceptibilityMappingTGV, MriResearchTools, Comonicon
 end
 
+version = Comonicon.get_version(QuantitativeSusceptibilityMappingTGV)
+Comonicon.get_version(::Module) = version
+
 @main function tgv_qsm(fn_phase, fn_mask; TE::Float64, output::String="output.nii.gz", fieldstrength::Float64=3.0, regularization::Float64=2.0, erosions::Int=3, B0_dir::Array{Int}=[0,0,1], dedimensionalize::Bool=false, no_laplacian_correction::Bool=false, step_size::Float64=3.0, no_gpu::Bool=false, type::DataType=Float32, nblocks::Int=32)
     println("Starting calculation...")
     phase = readphase(fn_phase)

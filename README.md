@@ -18,7 +18,7 @@ This project is an improvement of the [Python source code](http://www.neuroimagi
 
 1. Install [Julia](https://julialang.org/downloads/) (v1.9+ recommended)
 2. Make sure `julia` can be executed from the command line
-3. Download the single file tgv_qsm.jl (<a id="raw-url" href="https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/blob/main/tgv_qsm.jl">Download tgv_qsm.jl</a>)
+3. Download the single file [tgv_qsm.jl](https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/blob/main/tgv_qsm.jl)
 
 ### Run script
 

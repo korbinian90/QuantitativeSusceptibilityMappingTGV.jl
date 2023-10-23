@@ -12,16 +12,48 @@ This project is an improvement of the [Python source code](http://www.neuroimagi
 
 - Langkammer, C., Bredies, K., Poser, B. A., Barth, M., Reishofer, G., Fan, A. P., ... & Ropele, S. (2015). Fast quantitative susceptibility mapping using 3D EPI and total generalized variation. Neuroimage, 111, 622-630.
 
-## Setup
+## Command line usage
+
+### Command line Setup
+
+1. Install [Julia](https://julialang.org/downloads/) (v1.9+ recommended)
+2. Make sure `julia` can be executed from the command line
+3. Download the single file tgv_qsm.jl (<a id="raw-url" href="https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/blob/main/tgv_qsm.jl">Download tgv_qsm.jl</a>)
+
+### Run script
+
+```bash
+julia <folder>/tgv_qsm.jl --help
+```
+
+On the first usage, the script will download all dependencies.
+
+### Optional configuration
+
+Under Linux: Make the file executable with `chmod +x tgv_qsm.jl` and run via
+
+```bash
+<folder>/tgv_qsm.jl --help
+```
+
+## Run in Julia
+
+### Setup
 
 1. Install [Julia](https://julialang.org/downloads/) (v1.9+ recommended)
 2. Install this package  
     Open the julia REPL and type:
 
     ```julia
+    julia> ] # enters package manager
+    pkg> add QuantitativeSusceptibilityMappingTGV MriResearchTools
+    ```
+
+    or
+
+    ```julia
     import Pkg
-    Pkg.add(url="https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl")
-    Pkg.add("MriResearchTools") # for nifti handling
+    Pkg.add(["QuantitativeSusceptibilityMappingTGV", "MriResearchTools"])
     ```
 
 ## Example to run TGV
@@ -61,10 +93,6 @@ This project is an improvement of the [Python source code](http://www.neuroimagi
 
 The first execution might take some time to compile the kernels (~1min).
 
-## Command Line Interface
-
-Coming soon
-
 ## Settings
 
 The default settings were optimized for brain QSM and should lead to good results independently of the acquired resolution.
@@ -91,7 +119,7 @@ It uses the number of CPU threads julia was started with. You can use `julia --t
 
 This implementation doesn't support data with an oblique angle acquisition yet. For rotated data, it is recommended to use the [QSMxT pipeline](https://qsmxt.github.io/QSMxT/) for susceptibility mapping, which applies TGV internally
 
-## Self contained example to test if everything works
+## Self contained example to test if package works
 
 ```julia
 using QuantitativeSusceptibilityMappingTGV
@@ -120,7 +148,7 @@ The parallel CPU version is about twice as fast as the Cython version, the GPU v
 
 ## Run with other GPU types
 
-Other GPU types should be supported, however are only minimally tested.
+Other GPU types don't work with the command line script. They have to be accessed via Julia (or the command line script modified).
 
 ```julia
 using AMDGPU

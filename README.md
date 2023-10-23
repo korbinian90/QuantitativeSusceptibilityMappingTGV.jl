@@ -18,16 +18,23 @@ This project is an improvement of the [Python source code](http://www.neuroimagi
 
 1. Install [Julia](https://julialang.org/downloads/) (v1.9+ recommended)
 2. Make sure `julia` can be executed from the command line
-3. Download the file command_line_script/tgv_qsm.jl
-4. Make the file executable: `chmod +x tgv_qsm.jl`
+3. Download the single file tgv_qsm.jl (<a id="raw-url" href="https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/blob/main/tgv_qsm.jl">Download tgv_qsm.jl</a>)
 
 ### Run script
 
 ```bash
-<folder>/tgv_qsm.jl --help
+julia <folder>/tgv_qsm.jl --help
 ```
 
 On the first usage, the script will download all dependencies.
+
+### Optional configuration
+
+Under Linux: Make the file executable with `chmod +x tgv_qsm.jl` and run via
+
+```bash
+<folder>/tgv_qsm.jl --help
+```
 
 ## Run in Julia
 
@@ -85,10 +92,6 @@ On the first usage, the script will download all dependencies.
     ```
 
 The first execution might take some time to compile the kernels (~1min).
-
-## Command Line Interface
-
-Coming soon
 
 ## Settings
 

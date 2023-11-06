@@ -160,7 +160,7 @@ end
     # return A0, A1m, A1p, A2m, A2p, A3m, A3p
 end
 
-function wave_local((I, (x, y, z)), A::AbstractArray{T}, kernel, mask=nothing) where {T}
+@inline function wave_local((I, (x, y, z)), A::AbstractArray{T}, kernel, mask=nothing) where {T}
     i, j, k = Tuple(I)
     res = zero(T)
     if i > 1 && j > 1 && k > 1 && i < x && j < y && k < z

@@ -1,4 +1,4 @@
-function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=CUDA.functional(), nblocks=32)
+function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=CUDA.functional(), nblocks=32, dipole_kernel)
     device, cu = select_device(gpu)
     phase, res, alpha, fieldstrength, mask = adjust_types(type, phase, res, alpha, fieldstrength, mask)
 
@@ -19,7 +19,9 @@ function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regula
         laplace_phi0 .-= mean(laplace_phi0[mask0]) # mean correction to avoid background artefact
     end
 
-    alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel = set_parameters(alpha, res, B0_dir, cu)
+    alphainv, tau, sigma, resinv, laplace_kernel, dk = set_parameters(alpha, res, B0_dir, cu)
+    @show dipole_kernel = cu(dipole_kernel)
+    # dipole_kernel = dk
 
     laplace_phi0, mask, mask0 = cu(laplace_phi0), cu(mask), cu(mask0) # send to device
 

@@ -1,4 +1,4 @@
-function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=CUDA.functional(), nblocks=32, dipole_kernel)
+function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=CUDA.functional(), nblocks=32)
     device, cu = select_device(gpu)
     phase, res, alpha, fieldstrength, mask = adjust_types(type, phase, res, alpha, fieldstrength, mask)
 
@@ -19,9 +19,7 @@ function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regula
         laplace_phi0 .-= mean(laplace_phi0[mask0]) # mean correction to avoid background artefact
     end
 
-    alphainv, tau, sigma, resinv, laplace_kernel, dk = set_parameters(alpha, res, B0_dir, cu)
-    @show dipole_kernel = cu(dipole_kernel)
-    # dipole_kernel = dk
+    alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel = set_parameters(alpha, res, B0_dir, cu)
 
     laplace_phi0, mask, mask0 = cu(laplace_phi0), cu(mask), cu(mask0) # send to device
 
@@ -124,11 +122,6 @@ function de_dimensionalize(res, alpha, laplace_phi0)
 end
 
 function set_parameters(alpha, res, B0_dir, cu)
-    # If there are other values than 0 and 1 in B0 dir then print a warning
-    if !all(abs(B0_dir[i]) in [0, 1] for i in 1:3)
-        @warn("Warning: works only for grid-aligned B0 directions at the moment, but it is B0_dir=$B0_dir")
-    end
-
     alphainv = 1 ./ alpha
 
     grad_norm_sqr = 4 * (sum(res .^ -2))
@@ -138,7 +131,10 @@ function set_parameters(alpha, res, B0_dir, cu)
 
     resinv = cu(1 ./ res)
     laplace_kernel = cu(res .^ -2)
-    dipole_kernel = cu((1 // 3 .- B0_dir .^ 2) ./ (res .^ 2))
+
+    @pyinclude(joinpath(@__DIR__, "oblique_stencil_fun.py"))
+    dipole_kernel = py"stencil"(st=19, direction=B0_dir, res=res, gridsize=(128, 128, 128)) # calling the function from oblique_stencil_fun.py
+    dipole_kernel = cu(permutedims(dipole_kernel, (2,3,1))) # for some reason the dimensions are handled inconsistently
 
     return alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel
 end

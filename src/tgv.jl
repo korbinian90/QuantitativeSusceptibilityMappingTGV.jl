@@ -134,7 +134,7 @@ function set_parameters(alpha, res, B0_dir, cu)
 
     @pyinclude(joinpath(@__DIR__, "oblique_stencil_fun.py"))
     dipole_kernel = py"stencil"(st=19, direction=B0_dir, res=res, gridsize=(128, 128, 128)) # calling the function from oblique_stencil_fun.py
-    dipole_kernel = cu(permutedims(dipole_kernel, (2,3,1))) # for some reason the dimensions are handled inconsistently
+    dipole_kernel = cu(permutedims(dipole_kernel, (2,3,1))) # fixing dimensions
 
     return alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel
 end

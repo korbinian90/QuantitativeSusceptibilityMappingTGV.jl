@@ -162,17 +162,17 @@ end
 
 @inline function wave_local((I, (x, y, z)), A::AbstractArray{T}, kernel, mask=nothing) where {T}
     i, j, k = Tuple(I)
-    res = zero(T)
+    result = zero(T)
     if i > 1 && j > 1 && k > 1 && i < x && j < y && k < z
         for di in -1:1, dj in -1:1, dk in -1:1
             if isnothing(mask)
-                res += A[i+di, j+dj, k+dk] * kernel[di+2, dj+2, dk+2]
+                result += A[i+di, j+dj, k+dk] * kernel[di+2, dj+2, dk+2]
             else
-                res += mask[i+di, j+dj, k+dk] * A[i+di, j+dj, k+dk] * kernel[di+2, dj+2, dk+2]
+                result += mask[i+di, j+dj, k+dk] * A[i+di, j+dj, k+dk] * kernel[di+2, dj+2, dk+2]
             end
         end
     end
-    return res
+    return result
 end
 
 @inline function filter_local(I, A, w, mask=nothing)

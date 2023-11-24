@@ -1,6 +1,6 @@
 module QuantitativeSusceptibilityMappingTGV
 
-using CUDA, KernelAbstractions, PaddedViews, ImageMorphology, Interpolations, Rotations, OffsetArrays, StaticArrays, ProgressMeter, Statistics, ImageFiltering, ROMEO, PyCall
+using CUDA, KernelAbstractions, PaddedViews, ImageMorphology, Interpolations, Rotations, OffsetArrays, StaticArrays, ProgressMeter, Statistics, ImageFiltering, ROMEO, PyCall, LinearAlgebra
 
 include("tgv.jl")
 include("tgv_helper.jl")

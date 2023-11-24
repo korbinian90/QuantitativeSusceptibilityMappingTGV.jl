@@ -122,18 +122,27 @@ function de_dimensionalize(res, alpha, laplace_phi0)
 end
 
 function set_parameters(alpha, res, B0_dir, cu)
+    @pyinclude(joinpath(@__DIR__, "oblique_stencil_fun.py"))
+    dipole_kernel = py"stencil"(st=19, direction=B0_dir, res=res, gridsize=(128, 128, 128)) # calling the function from oblique_stencil_fun.py
+
     alphainv = 1 ./ alpha
 
-    grad_norm_sqr = 4 * (sum(res .^ -2))
-    norm_sqr = 2 * grad_norm_sqr^2 + 1
+    grad_norm_sqr = 4 * sum(res .^ -2)
+    
+    grad_norm = sqrt(grad_norm_sqr)
+    wave_norm = sum(abs.(dipole_kernel))
+    norm_matrix = [0 grad_norm 1; 0 0 grad_norm; grad_norm_sqr wave_norm 0]
+    F = svd(norm_matrix)
+    
+    norm_sqr_orig = 2 * grad_norm_sqr^2 + 1
+    norm_sqr = first(F.S)^2
+
     tau = 1 / sqrt(norm_sqr)
     sigma = (1 / norm_sqr) / tau # always identical to tau
 
     resinv = cu(1 ./ res)
     laplace_kernel = cu(res .^ -2)
 
-    @pyinclude(joinpath(@__DIR__, "oblique_stencil_fun.py"))
-    dipole_kernel = py"stencil"(st=19, direction=B0_dir, res=res, gridsize=(128, 128, 128)) # calling the function from oblique_stencil_fun.py
     dipole_kernel = cu(permutedims(dipole_kernel, (2,3,1))) # fixing dimensions
 
     return alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel

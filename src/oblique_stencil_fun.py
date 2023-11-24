@@ -92,3 +92,13 @@ def stencil(st=27, res=(1.0, 1.0, 1.0), direction=(0,0,1), gridsize=(128, 128, 1
     print(f"Normalized error: {rel_err}")
     
     return stencil
+
+def norm_sqr(dipole_kernel, res):
+    grad_norm_sqr = 4.0*(sum(1.0/(res**2)))
+    grad_norm = sqrt(grad_norm_sqr)
+    wave_norm = sum(abs(dipole_kernel))
+    norm_matrix = [[0, grad_norm, 1], [0, 0, grad_norm], [grad_norm_sqr, wave_norm, 0]]
+    U, s, Vt = svd(norm_matrix)
+    norm_sqr = s[0]*s[0]
+    return norm_sqr
+

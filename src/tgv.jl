@@ -1,4 +1,4 @@
-function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=CUDA.functional(), nblocks=32)
+function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=CUDA.functional(), nblocks=32, orig_kernel=false)
     device, cu = select_device(gpu)
     phase, res, alpha, fieldstrength, mask = adjust_types(type, phase, res, alpha, fieldstrength, mask)
 
@@ -19,7 +19,7 @@ function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regula
         laplace_phi0 .-= mean(laplace_phi0[mask0]) # mean correction to avoid background artefact
     end
 
-    alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel = set_parameters(alpha, res, B0_dir, cu)
+    alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel = set_parameters(alpha, res, B0_dir, cu; orig_kernel)
 
     laplace_phi0, mask, mask0 = cu(laplace_phi0), cu(mask), cu(mask0) # send to device
 
@@ -121,21 +121,33 @@ function de_dimensionalize(res, alpha, laplace_phi0)
     return res, alpha, laplace_phi0
 end
 
-function set_parameters(alpha, res, B0_dir, cu)
-    @pyinclude(joinpath(@__DIR__, "oblique_stencil_fun.py"))
-    dipole_kernel = py"stencil"(st=19, direction=B0_dir, res=res, gridsize=(128, 128, 128)) # calling the function from oblique_stencil_fun.py
+function set_parameters(alpha, res, B0_dir, cu; orig_kernel=false)
+    if orig_kernel
+        dipole_kernel = zeros(Float32, 3, 3, 3)
+        dipole_kernel[3, 2, 2] = 1/3 / res[1]^2
+        dipole_kernel[2, 3, 2] = 1/3 / res[2]^2
+        dipole_kernel[2, 2, 3] = -2/3 / res[3]^2
+        dipole_kernel[2, 2, 2] = 0
+        dipole_kernel[2, 2, 1] = -2/3 / res[3]^2
+        dipole_kernel[2, 1, 2] = 1/3 / res[2]^2
+        dipole_kernel[1, 2, 2] = 1/3 / res[1]^2
+        
+        grad_norm_sqr = 4 * sum(res .^ -2)
+        norm_sqr = 2 * grad_norm_sqr^2 + 1
+    else
+        dipole_kernel = stencil(; st=27, direction=B0_dir, res=res)
+
+        grad_norm_sqr = 4 * sum(res .^ -2)
+        grad_norm = sqrt(grad_norm_sqr)
+        wave_norm = sum(abs.(dipole_kernel))
+        norm_matrix = [0 grad_norm 1; 0 0 grad_norm; grad_norm_sqr wave_norm 0]
+        F = svd(norm_matrix)
+        norm_sqr = first(F.S)^2
+    end
+
+    @show dipole_kernel
 
     alphainv = 1 ./ alpha
-
-    grad_norm_sqr = 4 * sum(res .^ -2)
-    
-    grad_norm = sqrt(grad_norm_sqr)
-    wave_norm = sum(abs.(dipole_kernel))
-    norm_matrix = [0 grad_norm 1; 0 0 grad_norm; grad_norm_sqr wave_norm 0]
-    F = svd(norm_matrix)
-    
-    norm_sqr_orig = 2 * grad_norm_sqr^2 + 1
-    norm_sqr = first(F.S)^2
 
     tau = 1 / sqrt(norm_sqr)
     sigma = (1 / norm_sqr) / tau # always identical to tau
@@ -143,7 +155,7 @@ function set_parameters(alpha, res, B0_dir, cu)
     resinv = cu(1 ./ res)
     laplace_kernel = cu(res .^ -2)
 
-    dipole_kernel = cu(permutedims(dipole_kernel, (2,3,1))) # fixing dimensions
+    dipole_kernel = cu(dipole_kernel)
 
     return alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel
 end

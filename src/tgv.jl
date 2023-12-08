@@ -121,17 +121,21 @@ function de_dimensionalize(res, alpha, laplace_phi0)
     return res, alpha, laplace_phi0
 end
 
+function dipole_kernel_orig(res)
+    dipole_kernel = zeros(Float32, 3, 3, 3)
+    dipole_kernel[3, 2, 2] = 1/3 / res[1]^2
+    dipole_kernel[2, 3, 2] = 1/3 / res[2]^2
+    dipole_kernel[2, 2, 3] = -2/3 / res[3]^2
+    dipole_kernel[2, 2, 2] = 0
+    dipole_kernel[2, 2, 1] = -2/3 / res[3]^2
+    dipole_kernel[2, 1, 2] = 1/3 / res[2]^2
+    dipole_kernel[1, 2, 2] = 1/3 / res[1]^2
+    return dipole_kernel
+end
+
 function set_parameters(alpha, res, B0_dir, cu; orig_kernel=false)
     if orig_kernel
-        dipole_kernel = zeros(Float32, 3, 3, 3)
-        dipole_kernel[3, 2, 2] = 1/3 / res[1]^2
-        dipole_kernel[2, 3, 2] = 1/3 / res[2]^2
-        dipole_kernel[2, 2, 3] = -2/3 / res[3]^2
-        dipole_kernel[2, 2, 2] = 0
-        dipole_kernel[2, 2, 1] = -2/3 / res[3]^2
-        dipole_kernel[2, 1, 2] = 1/3 / res[2]^2
-        dipole_kernel[1, 2, 2] = 1/3 / res[1]^2
-        
+        dipole_kernel = dipole_kernel_orig(res)        
         grad_norm_sqr = 4 * sum(res .^ -2)
         norm_sqr = 2 * grad_norm_sqr^2 + 1
     else

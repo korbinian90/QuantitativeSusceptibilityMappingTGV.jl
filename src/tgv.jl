@@ -126,10 +126,10 @@ function dipole_kernel_orig(res)
     dipole_kernel[3, 2, 2] = 1/3 / res[1]^2
     dipole_kernel[2, 3, 2] = 1/3 / res[2]^2
     dipole_kernel[2, 2, 3] = -2/3 / res[3]^2
-    dipole_kernel[2, 2, 2] = 0
     dipole_kernel[2, 2, 1] = -2/3 / res[3]^2
     dipole_kernel[2, 1, 2] = 1/3 / res[2]^2
-    dipole_kernel[1, 2, 2] = 1/3 / res[1]^2
+    dipole_kernel[1, 2, 2] = 1/3 / res[1]^2    
+    dipole_kernel[2, 2, 2] = -sum(dipole_kernel)
     return dipole_kernel
 end
 

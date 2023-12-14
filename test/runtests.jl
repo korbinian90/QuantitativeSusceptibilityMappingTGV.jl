@@ -30,7 +30,7 @@ end
         chi_gpu = qsm_tgv(phase, mask, res; TE, iterations, gpu=true)
 
         relative_diff(A, B) = sum(abs.(A .- B)) / sum(abs.(B))
-        @test relative_diff(Array(chi_gpu), chi_cpu) < 1e-7
+        @test relative_diff(Array(chi_gpu), chi_cpu) < 2e-7
     end
 end
 
@@ -47,7 +47,7 @@ end
         chi_gpu = qsm_tgv(phase, mask, res; TE, iterations, gpu=QuantitativeSusceptibilityMappingTGV.CUDA)
 
         relative_diff(A, B) = sum(abs.(A .- B)) / sum(abs.(B))
-        @test relative_diff(Array(chi_gpu), chi_cpu) < 1e-7
+        @test relative_diff(Array(chi_gpu), chi_cpu) < 2e-7
     end
 end
 

@@ -1,4 +1,4 @@
-function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=CUDA.functional(), nblocks=32, orig_kernel=false)
+function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=CUDA.functional(), nblocks=32, orig_kernel=get_default_use_orig_kernel(res))
     device, cu = select_device(gpu)
     phase, res, alpha, fieldstrength, mask = adjust_types(type, phase, res, alpha, fieldstrength, mask)
 
@@ -131,6 +131,11 @@ function dipole_kernel_orig(res)
     dipole_kernel[1, 2, 2] = 1/3 / res[1]^2    
     dipole_kernel[2, 2, 2] = -sum(dipole_kernel)
     return dipole_kernel
+end
+
+function get_default_use_orig_kernel(res)
+    # currently anisotropic voxels don't work with the new kernel
+    return length(unique(res)) != 1
 end
 
 function set_parameters(alpha, res, B0_dir, cu; orig_kernel=false)

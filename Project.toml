@@ -21,6 +21,7 @@ Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [compat]
 CUDA = "4,5"
+FFTW = "1.7"
 ImageFiltering = "0.7"
 ImageMorphology = "0.4"
 Interpolations = "0.14, 0.15"
@@ -31,4 +32,5 @@ ProgressMeter = "1.7"
 ROMEO = "1.0"
 Rotations = "1.5"
 StaticArrays = "1.6"
+Statistics = "1.7"
 julia = "1.7"

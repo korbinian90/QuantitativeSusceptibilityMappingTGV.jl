@@ -154,8 +154,6 @@ function set_parameters(alpha, res, B0_dir, cu; orig_kernel=false)
         norm_sqr = first(F.S)^2
     end
 
-    @show dipole_kernel
-
     alphainv = 1 ./ alpha
 
     tau = 1 / sqrt(norm_sqr)

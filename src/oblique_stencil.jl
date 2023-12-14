@@ -8,9 +8,6 @@ function dipole(x, y, z, direction=(0, 0, 1))
 end
 
 function stencil(; st=27, res=(1.0, 1.0, 1.0), direction=(0, 0, 1), gridsize=(128, 128, 128))
-    println("Direction: (", direction[1], ", ", direction[2], ", ", direction[3], ")")
-    println("Resolution: (", res[1], ", ", res[2], ", ", res[3], ")")
-
     middle = floor.(Int, gridsize ./ 2) .+ 1
 
     coord = [((1:gridsize[i]) .- middle[i]) * res[i] for i in 1:3]

@@ -16,10 +16,10 @@ import Pkg
 # Pkg.activate(package_dir)
 
 try
-    using QuantitativeSusceptibilityMappingTGV, MriResearchTools, Comonicon
+    using CUDA, QuantitativeSusceptibilityMappingTGV, MriResearchTools, Comonicon
 catch
-    Pkg.add(["QuantitativeSusceptibilityMappingTGV", "MriResearchTools", "Comonicon"])
-    using QuantitativeSusceptibilityMappingTGV, MriResearchTools, Comonicon
+    Pkg.add(["CUDA", "QuantitativeSusceptibilityMappingTGV", "MriResearchTools", "Comonicon"])
+    using CUDA, QuantitativeSusceptibilityMappingTGV, MriResearchTools, Comonicon
 end
 
 version = Comonicon.get_version(QuantitativeSusceptibilityMappingTGV)
@@ -31,7 +31,7 @@ Comonicon.get_version(::Module) = version
     mask = niread(fn_mask) .!= 0
     res = header(phase).pixdim[2:4]
     println("Resolution from NIfTI header [mm]: $(round.(Float64.(res); digits=2))")
-    chi = qsm_tgv(phase, mask, res; TE, B0_dir, fieldstrength, regularization, erosions, dedimensionalize, correct_laplacian=!no_laplacian_correction, gpu=!no_gpu, step_size, type, nblocks)
+    chi = qsm_tgv(phase, mask, res; TE, B0_dir, fieldstrength, regularization, erosions, dedimensionalize, correct_laplacian=!no_laplacian_correction, gpu=!no_gpu, step_size, type, nblocks, gpu=CUDA)
     println("Writing output")
     savenii(chi, output; header=header(phase))
 end

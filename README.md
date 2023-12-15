@@ -72,7 +72,6 @@ Under Linux: Make the file executable with `chmod +x tgv_qsm.jl` and run via
     TE = 0.004 # in [s]
     fieldstrength = 3 # in [T]
     
-    # Automatically runs on GPU, if a CUDA device is detected
     chi = qsm_tgv(phase, mask, res; TE=TE, fieldstrength=fieldstrength);
 
     savenii(chi, "chi", "<folder-to-save>")
@@ -96,11 +95,6 @@ The first execution might take some time to compile the kernels (~1min).
 ## Settings
 
 The default settings were optimized for brain QSM and should lead to good results independently of the acquired resolution.
-
-```julia
-# Run on CPU in parallel
-chi = qsm_tgv(phase, mask, res; TE, fieldstrength, gpu=false);
-```
 
 It uses the number of CPU threads julia was started with. You can use `julia --threads=auto` or set it to a specific number of threads.
 
@@ -146,9 +140,14 @@ qsm = qsm_tgv(phase, mask, res; TE, fieldstrength, laplacian=get_laplace_phase3,
 
 The parallel CPU version is about twice as fast as the Cython version, the GPU version is about 10x faster than the Cython version (on a RTX 3060 Laptop GPU 6GB)  
 
-## Run with other GPU types
+## Run on GPU
 
 Other GPU types don't work with the command line script. They have to be accessed via Julia (or the command line script modified).
+
+```julia
+using CUDA
+chi = qsm_tgv(phase, mask, res; TE, fieldstrength, gpu=CUDA);
+```
 
 ```julia
 using AMDGPU

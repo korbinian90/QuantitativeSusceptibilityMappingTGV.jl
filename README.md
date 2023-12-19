@@ -4,7 +4,7 @@
 [![Coverage](https://codecov.io/gh/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/korbinian90/QuantitativeSusceptibilityMappingTGV.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-This project is an improvement of the [Python source code](http://www.neuroimaging.at/pages/qsm.php) in terms of speed, artefacts and ease of use.  
+This project is an improvement of the [Python source code](http://www.neuroimaging.at/pages/qsm.php) in terms of speed, artefacts and ease of use. Oblique orientations and anisotropic voxel sizes are supported.  
 
 ## References
 
@@ -176,7 +176,7 @@ A simple solution is to remove areas based on phase quality using [ROMEO](https:
 
 ```julia
 using MriResearchTools
-mask_phase = robustmask(romeovoxelquality(phase; mag))
+mask_phase = robustmask(romeovoxelquality(phase; mag=mag))
 mask_combined = mask_phase .& mask_brain
 ```
 

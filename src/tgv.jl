@@ -1,4 +1,13 @@
-function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=CUDA.functional(), nblocks=32, orig_kernel=false)
+"""
+qsm_tgv(phase, mask, res; TE, kwargs...)
+
+Optional arguments:
+
+Example:
+    chi = qsm_tgv(randn(20,20,20), trues(20,20,20), [1,1,2]; TE=0.025, fieldstrength=3)
+
+"""
+function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=nothing, nblocks=32, orig_kernel=false)
     device, cu = select_device(gpu)
     phase, res, alpha, fieldstrength, mask = adjust_types(type, phase, res, alpha, fieldstrength, mask)
 
@@ -175,15 +184,7 @@ function reduce_to_mask_box(laplace_phi0, mask)
     return laplace_phi0, mask, box_indices, original_size
 end
 
-function default_backend()
-    if CUDA.functional()
-        return CUDA.CUDAKernels.CUDABackend()
-    else
-        return CPU()
-    end
-end
-
-function select_device(library::Module)
+function select_device(library)
     if Symbol(library) == :CUDA
         println("Using the GPU via CUDA")
         return library.CUDAKernels.CUDABackend(), library.cu
@@ -197,17 +198,7 @@ function select_device(library::Module)
         println("Using the GPU via Metal")
         return library.MetalKernels.MetalBackend(), library.MtlArray
     else
-        println("Using $(Threads.nthreads()) CPU cores")
-        return CPU(), identity
-    end
-end
-
-function select_device(gpu)
-    if gpu
-        println("Using the GPU")
-        return CUDA.CUDAKernels.CUDABackend(), CUDA.cu
-    else
-        println("Using $(Threads.nthreads()) CPU cores")
+        println("Using $(Threads.nthreads()) CPU threads")
         return CPU(), identity
     end
 end

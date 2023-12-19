@@ -1,10 +1,9 @@
 name = "QuantitativeSusceptibilityMappingTGV"
 uuid = "bd393529-335a-4aed-902f-5de61cc7ff49"
 authors = ["Korbinian Eckstein korbinian90@gmail.com"]
-version = "0.2.1"
+version = "0.3.0"
 
 [deps]
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 ImageFiltering = "6a3955dd-da59-5b1f-98d4-e7296123deb5"
 ImageMorphology = "787d08f9-d448-5407-9aad-5290dd7ab264"
@@ -20,7 +19,6 @@ StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
 [compat]
-CUDA = "4,5"
 FFTW = "1.7"
 ImageFiltering = "0.7"
 ImageMorphology = "0.4"

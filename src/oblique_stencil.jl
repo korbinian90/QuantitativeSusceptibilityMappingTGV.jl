@@ -10,7 +10,7 @@ function dipole(x, y, z, r_treshold, direction=(0, 0, 1))
     return kappa
 end
 
-function stencil(; st=27, res=(1.0, 1.0, 1.0), res0=1.0, direction=(0, 0, 1), gridsize=(128, 128, 128))
+function stencil(; st=27, res=(1.0, 1.0, 1.0), res0=1.0, direction=(0, 0, 1), gridsize=(64, 64, 64))
     middle = floor.(Int, gridsize ./ 2) .+ 1
 
     coord = [((1:gridsize[i]) .- middle[i]) * res0 for i in 1:3]

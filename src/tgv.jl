@@ -107,8 +107,8 @@ end
 
 function get_default_iterations(res, step_size)
     # Heuristic formula
-    it = 2500 # default for res=[1,1,1]
-    min_iterations = 1500 # even low res data needs at least 1500 iterations
+    it = 2000 # default for res=[1,1,1]
+    min_iterations = 1000 # even low res data needs at least 1000 iterations
     it = max(min_iterations, it / prod(res)^0.8)
     it /= step_size^0.6
     return round(Int, it)

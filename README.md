@@ -40,6 +40,14 @@ Under Linux: Make the file executable with `chmod +x tgv_qsm.jl` and run directl
 <folder>/tgv_qsm.jl --help
 ```
 
+### Number of threads
+
+In case Julia uses only 1 CPU thread, you can use the command
+
+```bash
+julia --threads=auto <folder>/tgv_qsm.jl <arguments>
+```
+
 ## Run in Julia
 
 ### Setup

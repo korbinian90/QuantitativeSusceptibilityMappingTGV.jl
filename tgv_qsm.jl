@@ -6,7 +6,7 @@
 # On windows use: `julia --threads=auto <path-to-file>/tgv_qsm.jl ARGS`
 
 # Example call:
-# `./tgv_qsm.jl phase.nii.gz mask.nii.gz --TE 0.025 --output output.nii.gz --no-gpu
+# `./tgv_qsm.jl phase.nii.gz mask.nii.gz --TE 0.025 --output output.nii.gz
 
 import Pkg
 
@@ -31,7 +31,7 @@ Comonicon.get_version(::Module) = version
     mask = niread(fn_mask) .!= 0
     res = header(phase).pixdim[2:4]
     println("Resolution from NIfTI header [mm]: $(round.(Float64.(res); digits=2))")
-    chi = qsm_tgv(phase, mask, res; TE, B0_dir, fieldstrength, regularization, erosions, dedimensionalize, correct_laplacian=!no_laplacian_correction, gpu=!no_gpu, step_size, type, nblocks)
+    chi = qsm_tgv(phase, mask, res; TE, B0_dir, fieldstrength, regularization, erosions, dedimensionalize, correct_laplacian=!no_laplacian_correction, step_size, type, nblocks)
     println("Writing output")
     savenii(chi, output; header=header(phase))
 end

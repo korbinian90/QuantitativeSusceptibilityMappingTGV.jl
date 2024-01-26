@@ -4,7 +4,7 @@
 [![Coverage](https://codecov.io/gh/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/korbinian90/QuantitativeSusceptibilityMappingTGV.jl)
 [![Aqua QA](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-This project is an improvement of the [Python source code](http://www.neuroimaging.at/pages/qsm.php) in terms of speed, artefacts and ease of use. Oblique orientations and anisotropic voxel sizes are supported.  
+This project is an improvement of the TGV-QSM method in terms of speed, artefacts and ease of use. Oblique orientations and anisotropic voxel sizes are supported.  
 
 ## References
 
@@ -12,11 +12,15 @@ This project is an improvement of the [Python source code](http://www.neuroimagi
 
 - Langkammer, C., Bredies, K., Poser, B. A., Barth, M., Reishofer, G., Fan, A. P., ... & Ropele, S. (2015). Fast quantitative susceptibility mapping using 3D EPI and total generalized variation. Neuroimage, 111, 622-630.
 
+## Further points to consider
+
+[Masking for QSM](https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl#masking-for-qsm), [Run on GPU](https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl#run-on-gpu), [Rotated Data](https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl#rotated-data)
+
 ## Command line usage
 
-### Command line Setup
+### Command line Setup (Windows, Linux, Mac)
 
-1. Install [Julia](https://julialang.org/downloads/) (v1.9+ recommended)
+1. Install [Julia](https://julialang.org/downloads/) (v1.10+ recommended)
 2. Make sure `julia` can be executed from the command line
 3. Download the single file [tgv_qsm.jl](https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/blob/main/tgv_qsm.jl)
 
@@ -30,7 +34,7 @@ On the first usage, the script will download all dependencies.
 
 ### Optional configuration
 
-Under Linux: Make the file executable with `chmod +x tgv_qsm.jl` and run via
+Under Linux: Make the file executable with `chmod +x tgv_qsm.jl` and run directly via
 
 ```bash
 <folder>/tgv_qsm.jl --help
@@ -40,7 +44,7 @@ Under Linux: Make the file executable with `chmod +x tgv_qsm.jl` and run via
 
 ### Setup
 
-1. Install [Julia](https://julialang.org/downloads/) (v1.9+ recommended)
+1. Install [Julia](https://julialang.org/downloads/) (v1.10+ recommended)
 2. Install this package  
     Open the julia REPL and type:
 
@@ -56,7 +60,7 @@ Under Linux: Make the file executable with `chmod +x tgv_qsm.jl` and run via
     Pkg.add(["QuantitativeSusceptibilityMappingTGV", "MriResearchTools"])
     ```
 
-## Example to run TGV
+### Example to run TGV
 
 1. Prepare files  
     3D `mask` and `phase` NIfTI files are required
@@ -92,26 +96,36 @@ Under Linux: Make the file executable with `chmod +x tgv_qsm.jl` and run via
 
 The first execution might take some time to compile the kernels (~1min).
 
+### Julia IDE
+
+For convenient scripting in Julia, [vscode](https://code.visualstudio.com/) with the julia extension is recommended. NIfTI files can be viewed in vscode with the `niivue` extension.
+
 ## Settings
 
 The default settings were optimized for brain QSM and should lead to good results independently of the acquired resolution.
 
 It uses the number of CPU threads julia was started with. You can use `julia --threads=auto` or set it to a specific number of threads.
 
-### Other optional keyword arguments
+### List of optional keyword arguments
 
+`regularization=2` : change the strength of the regularization from 1-4  
 `erosions=3`: number of erosion steps applied to the mask  
-`B0_dir=[0, 0, 1]`: direction of the B0 field. Right angle rotation are currently supported  
-`alpha=[0.003, 0.001]`: manually choose regularization parameters (overwrites `regularization`)  
+`B0_dir=[0, 0, 1]`: direction of the B0 field for oblique orientations  
+
+For most applications the following options don't have to be adjusted:
+
+`alpha=[0.002, 0.003]`: manually choose regularization parameters (overwrites `regularization`)  
 `step_size=3`: requires less iterations with higher step size, but might lead to artefacts or iteration instabilities. `step_size=1` is the behaviour of the publication  
 `iterations=1000`: manually choose the number of iteration steps  
 `dedimensionalize=false`: optionally apply a dedimensionalization step  
-`laplacian=get_laplace_phase_del`: options are `get_laplace_phase3` (corresponds to Cython version), `get_laplace_phase_romeo` and `get_laplace_phase_del` (default). `get_laplace_phase_del` is selected as default as it improves the robustness when imperfect phase values are present  
-`correct_laplacian=true`: subtracts the mean of the Laplacian inside the mask, which avoids edge artefacts in certain cases
+`laplacian=get_laplace_phase_del`: options are `get_laplace_phase3` (corresponds to [Python](http://www.neuroimaging.at/pages/qsm.php)  version), `get_laplace_phase_romeo` and `get_laplace_phase_del` (default). `get_laplace_phase_del` is selected as default as it improves the robustness when imperfect phase values are present  
+`correct_laplacian=true`: subtracts the mean of the Laplacian inside the mask, which avoids edge artefacts in certain cases  
+`original_kernel=false` : select the kernel that was used in the [Python](http://www.neuroimaging.at/pages/qsm.php) version. This doesn't support oblique orientations  
 
 ## Rotated Data
 
-This implementation doesn't support data with an oblique angle acquisition yet. For rotated data, it is recommended to use the [QSMxT pipeline](https://qsmxt.github.io/QSMxT/) for susceptibility mapping, which applies TGV internally
+A new kernel was implemented that supports oblique acquisitions. The direction of the B0 field needs to be given as a vector e.g. `B0_dir=[0,0,1]` for the B0 field in z-direction.  
+(This should be retrievable with something like `B0_dir = nifti_phase.affine * [0,0,1]`. Needs confirming)  
 
 ## Self contained example to test if package works
 
@@ -130,10 +144,10 @@ chi = qsm_tgv(phase, mask, res; TE);
 
 ## Settings to reproduce the original version
 
-Beside one regularization [bug-fix](https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/commit/0dfe717a09fa766153a3c216243655a30b1359b0), this should produce identical results to the [original Cython code](https://www.neuroimaging.at/pages/qsm.php)
+Beside one regularization [bug-fix](https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/commit/0dfe717a09fa766153a3c216243655a30b1359b0), this should produce identical results to the [original Python code](https://www.neuroimaging.at/pages/qsm.php)
 
 ```julia
-qsm = qsm_tgv(phase, mask, res; TE, fieldstrength, laplacian=get_laplace_phase3, step_size=1, iterations=1000, alpha=[0.003, 0.001], erosions=5, dedimensionalize=false, correct_laplacian=false)
+qsm = qsm_tgv(phase, mask, res; TE, fieldstrength, laplacian=get_laplace_phase3, step_size=1, iterations=1000, alpha=[0.003, 0.001], erosions=5, dedimensionalize=false, correct_laplacian=false, original_kernel=true)
 ```
 
 ## Speed
@@ -142,7 +156,7 @@ The parallel CPU version is about twice as fast as the Cython version, the GPU v
 
 ## Run on GPU
 
-Other GPU types don't work with the command line script. They have to be accessed via Julia (or the command line script modified).
+Command line script are provided for processing on the GPU e.g. ([tgv_qsm_cuda.jl](https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/blob/main/tgv_qsm_cuda.jl)) and also for the other GPU types. In Julia the GPU processing can be activated via:
 
 ```julia
 using CUDA

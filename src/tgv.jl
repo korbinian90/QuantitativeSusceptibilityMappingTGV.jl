@@ -7,7 +7,7 @@ Example:
     chi = qsm_tgv(randn(20,20,20), trues(20,20,20), [1,1,2]; TE=0.025, fieldstrength=3)
 
 """
-function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=nothing, nblocks=32, orig_kernel=false)
+function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regularization=2, alpha=get_default_alpha(regularization), step_size=3, iterations=get_default_iterations(res, step_size), erosions=3, dedimensionalize=false, correct_laplacian=true, laplacian=get_laplace_phase_del, type=Float32, gpu=nothing, nblocks=32, kernel=nothing)
     device, cu = select_device(gpu)
     phase, res, alpha, fieldstrength, mask = adjust_types(type, phase, res, alpha, fieldstrength, mask)
 
@@ -28,7 +28,7 @@ function qsm_tgv(phase, mask, res; TE, B0_dir=[0, 0, 1], fieldstrength=3, regula
         laplace_phi0 .-= mean(laplace_phi0[mask0]) # mean correction to avoid background artefact
     end
 
-    alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel = set_parameters(alpha, res, B0_dir, cu; orig_kernel)
+    alphainv, tau, sigma, resinv, laplace_kernel, dipole_kernel = set_parameters(alpha, res, B0_dir, cu; kernel)
 
     laplace_phi0, mask, mask0 = cu(laplace_phi0), cu(mask), cu(mask0) # send to device
 
@@ -142,17 +142,17 @@ function dipole_kernel_orig(res)
     return dipole_kernel
 end
 
-function set_parameters(alpha, res, B0_dir, cu; orig_kernel=false)
-    if orig_kernel isa AbstractArray
-        dipole_kernel = orig_kernel
-        
+function set_parameters(alpha, res, B0_dir, cu; kernel=nothing)
+    if kernel isa AbstractArray
+        dipole_kernel = kernel
+
         grad_norm_sqr = 4 * sum(res .^ -2)
         grad_norm = sqrt(grad_norm_sqr)
         wave_norm = sum(abs.(dipole_kernel))
         norm_matrix = [0 grad_norm 1; 0 0 grad_norm; grad_norm_sqr wave_norm 0]
         F = svd(norm_matrix)
         norm_sqr = first(F.S)^2    
-    elseif orig_kernel
+    elseif kernel == :original
         dipole_kernel = dipole_kernel_orig(res)
         grad_norm_sqr = 4 * sum(res .^ -2)
         norm_sqr = 2 * grad_norm_sqr^2 + 1

@@ -4,7 +4,6 @@
     R = @ndrange
 
     laplace = filter_local((I, R), phi, laplace_kernel)
-    # wave = filter_local((I, R), chi, dipole_kernel)
     wave = wave_local((I, R), chi, dipole_kernel)
 
     @inbounds eta[I] += sigma * mask[I] * (-laplace + wave - laplace_phi0[I])
@@ -80,7 +79,6 @@ end
     R = @ndrange
 
     div = div_local((I, R), p, resinv, mask0)
-    # wave = filter_local((I, R), v, dipole_kernel, mask0)
     wave = wave_local((I, R), v, dipole_kernel, mask0)
 
     @inbounds chi_dest[I] = chi[I] + tau * (div - wave)
@@ -135,17 +133,17 @@ end
 
 @inline function wave_local((I, (x, y, z)), A::AbstractArray{T}, kernel, mask=nothing) where {T}
     i, j, k = Tuple(I)
-    result = zero(T)
+    wave = zero(T)
     if i > 1 && j > 1 && k > 1 && i < x && j < y && k < z
         for di in -1:1, dj in -1:1, dk in -1:1
             if isnothing(mask)
-                result += A[i+di, j+dj, k+dk] * kernel[di+2, dj+2, dk+2]
+                wave += A[i+di, j+dj, k+dk] * kernel[di+2, dj+2, dk+2]
             else
-                result += mask[i+di, j+dj, k+dk] * A[i+di, j+dj, k+dk] * kernel[di+2, dj+2, dk+2]
+                wave += mask[i+di, j+dj, k+dk] * A[i+di, j+dj, k+dk] * kernel[di+2, dj+2, dk+2]
             end
         end
     end
-    return result
+    return wave
 end
 
 @inline function filter_local(I, A, w, mask=nothing)

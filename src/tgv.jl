@@ -143,11 +143,20 @@ function dipole_kernel_orig(res)
 end
 
 function set_parameters(alpha, res, B0_dir, cu; orig_kernel=false)
-    if orig_kernel
-        dipole_kernel = dipole_kernel_orig(res)        
+    if orig_kernel isa AbstractArray
+        dipole_kernel = orig_kernel
+        
+        grad_norm_sqr = 4 * sum(res .^ -2)
+        grad_norm = sqrt(grad_norm_sqr)
+        wave_norm = sum(abs.(dipole_kernel))
+        norm_matrix = [0 grad_norm 1; 0 0 grad_norm; grad_norm_sqr wave_norm 0]
+        F = svd(norm_matrix)
+        norm_sqr = first(F.S)^2    
+    elseif orig_kernel
+        dipole_kernel = dipole_kernel_orig(res)
         grad_norm_sqr = 4 * sum(res .^ -2)
         norm_sqr = 2 * grad_norm_sqr^2 + 1
-    else
+    else # default
         dipole_kernel = stencil(; st=27, direction=B0_dir, res=res)
 
         grad_norm_sqr = 4 * sum(res .^ -2)

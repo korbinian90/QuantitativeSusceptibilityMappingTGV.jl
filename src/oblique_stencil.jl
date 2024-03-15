@@ -10,12 +10,12 @@ function dipole(x, y, z, r_treshold, direction=(0, 0, 1))
     return kappa
 end
 
-function stencil(; st=27, res=(1.0, 1.0, 1.0), res0=1.0, direction=(0, 0, 1), gridsize=(64, 64, 64))
+function stencil(; st=27, res=(1.0, 1.0, 1.0), res0=1.0, singularity_cutout=4, direction=(0, 0, 1), gridsize=(64, 64, 64))
     middle = floor.(Int, gridsize ./ 2) .+ 1
 
     coord = [((1:gridsize[i]) .- middle[i]) * res0 for i in 1:3]
 
-    d = [dipole(x, y, z, 4res0, direction) for x in coord[1], y in coord[2], z in coord[3]]
+    d = [dipole(x, y, z, singularity_cutout * res0, direction) for x in coord[1], y in coord[2], z in coord[3]]
     d_mask = isfinite.(d)
 
     # stencil mask
@@ -28,7 +28,7 @@ function stencil(; st=27, res=(1.0, 1.0, 1.0), res0=1.0, direction=(0, 0, 1), gr
         mask = centered(falses((3, 3, 3)))
         mask[0, 0, :] .= mask[0, :, 0] .= mask[:, 0, 0] .= true
     end
-    mask[0,0,0] = false
+    mask[0, 0, 0] = false
 
     midInd = CartesianIndex(middle)
 
@@ -65,8 +65,8 @@ function stencil(; st=27, res=(1.0, 1.0, 1.0), res0=1.0, direction=(0, 0, 1), gr
     x = F.U * (y .* s_inv)
     x_corr = x * res0^3
 
-    stencil = zeros(Float32, 3, 3, 3)    
-    
+    stencil = zeros(Float32, 3, 3, 3)
+
     ind = 1
     for i in eachindex(stencil)
         if mask[i]
@@ -76,9 +76,9 @@ function stencil(; st=27, res=(1.0, 1.0, 1.0), res0=1.0, direction=(0, 0, 1), gr
     end
     weights = [(i^2 / res[1]^2 + j^2 / res[2]^2 + k^2 / res[3]^2) / (i^2 + j^2 + k^2) for i in -1:1, j in -1:1, k in -1:1]
     stencil .*= weights
-    
-    stencil[2,2,2] = 0
-    stencil[2,2,2] = -sum(stencil)
+
+    stencil[2, 2, 2] = 0
+    stencil[2, 2, 2] = -sum(stencil)
 
     return stencil
 end

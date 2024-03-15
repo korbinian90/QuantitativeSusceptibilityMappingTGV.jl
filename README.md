@@ -91,7 +91,7 @@ julia --threads=auto <folder>/tgv_qsm.jl <arguments>
 
     ```julia
     # Change regularization strength (1-4)
-    chi = qsm_tgv(phase, mask, res; TE, fieldstrength, regularization=1);
+    chi = qsm_tgv(phase, mask, voxel_size; TE, fieldstrength, regularization=1);
     ```
 
     ```julia

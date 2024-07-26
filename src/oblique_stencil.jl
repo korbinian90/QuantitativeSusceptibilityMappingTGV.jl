@@ -11,6 +11,10 @@ function dipole(x, y, z, r_treshold, direction=(0, 0, 1))
 end
 
 function stencil(; st=27, res=(1.0, 1.0, 1.0), singularity_cutout=4, direction=(0, 0, 1), gridsize=(64, 64, 64))
+    if any(res .== 0) || all(direction .== 0) || any(gridsize .== 0)
+        error("Please check the input parameters to the stencil computation. res $res, gridsize $gridsize and direction $direction must not be: any(res .== 0) || all(direction .== 0) || any(gridsize .== 0)")
+    end
+
     middle = floor.(Int, gridsize ./ 2) .+ 1
 
     coord = [((1:gridsize[i]) .- middle[i]) for i in 1:3]

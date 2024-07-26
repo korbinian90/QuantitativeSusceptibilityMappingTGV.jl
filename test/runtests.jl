@@ -52,6 +52,13 @@ end
     @test chi_3 != chi_romeo
 end
 
+@testitem "Stencil wrong settings Error" begin
+    @test_throws ErrorException stencil(; res=(3,2,0))
+    @test_throws ErrorException stencil(; direction=(0,0,0))
+    @test_throws ErrorException stencil(; gridsize=(64,64,0))
+    @test stencil() isa Array
+end
+
 @testitem "Aqua" begin
     using Aqua
     Aqua.test_ambiguities(QuantitativeSusceptibilityMappingTGV)

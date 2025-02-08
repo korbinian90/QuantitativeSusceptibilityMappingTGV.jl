@@ -155,7 +155,7 @@ chi = qsm_tgv(phase, mask, res; TE);
 Beside one regularization [bug-fix](https://github.com/korbinian90/QuantitativeSusceptibilityMappingTGV.jl/commit/0dfe717a09fa766153a3c216243655a30b1359b0), this should produce identical results to the [original Python code](https://www.neuroimaging.at/pages/qsm.php)
 
 ```julia
-qsm = qsm_tgv(phase, mask, res; TE, fieldstrength, laplacian=get_laplace_phase3, step_size=1, iterations=1000, alpha=[0.003, 0.001], erosions=5, dedimensionalize=false, correct_laplacian=false, original_kernel=true)
+qsm = qsm_tgv(phase, mask, res; TE, fieldstrength, laplacian=get_laplace_phase3, step_size=1, iterations=1000, alpha=[0.003, 0.001], erosions=5, dedimensionalize=false, correct_laplacian=false, kernel=:original)
 ```
 
 ## Speed

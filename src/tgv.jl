@@ -185,6 +185,9 @@ function adjust_types(type, laplace_phi_0, res, alpha, fieldstrength, mask)
 end
 
 function reduce_to_mask_box(laplace_phi0, mask)
+    if sum(mask) == 0
+        error("Mask is empty")
+    end
     original_size = size(laplace_phi0)
     box_indices = mask_box_indices(mask)
     laplace_phi0 = view(laplace_phi0, box_indices...)

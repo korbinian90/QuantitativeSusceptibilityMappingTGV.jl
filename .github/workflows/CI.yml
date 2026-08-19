@@ -18,8 +18,11 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.7'
-          - '1.10'
+          # 'min' tracks the julia compat lower bound in Project.toml instead of
+          # hardcoding it; '1' catches upstream breakage on current releases.
+          - 'min'
+          - 'lts'
+          - '1'
         os:
           - ubuntu-latest
         arch:

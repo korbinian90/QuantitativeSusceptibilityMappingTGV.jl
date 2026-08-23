@@ -9,7 +9,14 @@ include("oblique_stencil.jl")
 
 # The references for the method this package implements, registered next to the
 # code. The registry lives in ROMEO, which this package already depends on.
+#
+# ROMEO gained the registry in 1.5, and the compat bound here stays at "1.0" on
+# purpose: this package supports Julia 1.7, while ROMEO 1.5 requires 1.9, so an
+# older ROMEO is a legitimate resolution and must not be a load error. When that
+# happens the citations simply are not registered, and ROMEO's writer reports a
+# reference whose owning package is too old rather than omitting it silently.
 function __init__()
+    isdefined(ROMEO, :register_citation!) || return
     ROMEO.register_citation!(:tgv,
         """Langkammer, C., Bredies, K., Poser, B.A., Barth, M., Reishofer, G., Fan, A.P., Bilgic, B., Fazekas, F., Mainero, C., Ropele, S., 2015.
            Fast quantitative susceptibility mapping using 3D EPI and total generalized variation.

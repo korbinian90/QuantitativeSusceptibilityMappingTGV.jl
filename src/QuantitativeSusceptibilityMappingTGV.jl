@@ -26,6 +26,14 @@ function __init__()
         """Bredies, K., Ropele, S., Poser, B.A., Barth, M., Langkammer, C., 2014.
            Single-step quantitative susceptibility mapping using total generalized variation and 3D EPI.
            Proceedings of the 22nd Annual Meeting ISMRM, p. 604.""")
+    # Both references are for the one method, so they share a heading and appear
+    # together under it. Set through the dict rather than the `label` keyword,
+    # which ROMEO only gained in 1.5.1: the compat bound here is deliberately
+    # loose (see above), so an older ROMEO must still load, just without labels.
+    if isdefined(ROMEO, :LABELS)
+        ROMEO.LABELS[:tgv] = "TGV QSM"
+        ROMEO.LABELS[:tgv_original] = "TGV QSM"
+    end
 end
 
 export qsm_tgv, get_laplace_phase3, get_laplace_phase_del, get_laplace_phase_romeo, stencil

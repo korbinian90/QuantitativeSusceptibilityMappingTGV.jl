@@ -215,8 +215,16 @@ function select_device(library)
     end
 end
 
+# The 2N axis-aligned unit offsets: exactly what
+# `strel(CartesianIndex, strel_diamond(mask))` returned, spelled out so that
+# ImageMorphology is not needed for one structuring element. That dependency was
+# the only path to the LoopVectorization stack (15 packages) in this manifest.
+function diamond_offsets(::Val{N}) where N
+    return [CartesianIndex(ntuple(k -> k == d ? step : 0, N)) for d in 1:N for step in (-1, 1)]
+end
+
 function erode_mask(mask)
-    SE = strel(CartesianIndex, strel_diamond(mask))
+    SE = diamond_offsets(Val(ndims(mask)))
     erode_vox(I) = minimum(mask[I+J] for J in SE if checkbounds(Bool, mask, I + J))
     return [erode_vox(I) for I in eachindex(IndexCartesian(), mask)]
 end

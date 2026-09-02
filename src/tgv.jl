@@ -215,8 +215,13 @@ function select_device(library)
     end
 end
 
+# 6-connectivity in 3D, replaces ImageMorphology.strel_diamond
+function diamond_offsets(::Val{N}) where N
+    return [CartesianIndex(ntuple(k -> k == d ? step : 0, N)) for d in 1:N for step in (-1, 1)]
+end
+
 function erode_mask(mask)
-    SE = strel(CartesianIndex, strel_diamond(mask))
+    SE = diamond_offsets(Val(ndims(mask)))
     erode_vox(I) = minimum(mask[I+J] for J in SE if checkbounds(Bool, mask, I + J))
     return [erode_vox(I) for I in eachindex(IndexCartesian(), mask)]
 end

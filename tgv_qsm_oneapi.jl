@@ -25,9 +25,6 @@ end
 version = Comonicon.get_version(QuantitativeSusceptibilityMappingTGV)
 Comonicon.get_version(::Module) = version
 
-# filter(!isempty, ...): splitting on both separators turns "[0, 0, 1]" into
-# ["0", "", "0", "", "1"], and parse("") throws. ';' is accepted too, since a
-# direction copied out of Matlab arrives as "[0;0;1]".
 Base.tryparse(::Type{Array{Float64}}, s) = parse.(Float64, filter(!isempty, split(replace(s, "[" => "", "]" => ""), [',', ' ', ';'])))
 Base.tryparse(::Type{DataType}, s) = get(Dict("Float32" => Float32, "Float64" => Float64), s, nothing)
 

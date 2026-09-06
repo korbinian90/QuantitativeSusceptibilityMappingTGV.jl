@@ -1,7 +1,7 @@
 name = "QuantitativeSusceptibilityMappingTGV"
 uuid = "bd393529-335a-4aed-902f-5de61cc7ff49"
 authors = ["Korbinian Eckstein korbinian90@gmail.com"]
-version = "0.5.3"
+version = "0.6.0"
 
 [deps]
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
@@ -24,7 +24,7 @@ LinearAlgebra = "1.7"
 OffsetArrays = "1.12"
 PaddedViews = "0.5.12"
 ProgressMeter = "1.7"
-ROMEO = "1.0"
+ROMEO = "1.0, 2"
 Rotations = "1.5"
 StaticArrays = "1.6"
 Statistics = "1.7"
